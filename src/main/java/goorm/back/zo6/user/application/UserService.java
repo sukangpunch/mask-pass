@@ -28,29 +28,29 @@ public class UserService {
     private final UserValidator userValidator;
     private final ReservationCommandService reservationCommandService;
 
-    public UserResponse findById(Long userId){
-        User user = userRepository.findById(userId).orElseThrow(()-> new CustomException(ErrorCode.USER_NOT_FOUND));
+    public UserResponse findById(Long userId) {
+        User user = userRepository.findById(userId).orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
         return UserResponse.from(user);
     }
 
     @Transactional
-    public SignUpResponse signUp(SignUpRequest request){
+    public SignUpResponse signUp(SignUpRequest request) {
         userRepository.findByEmail(request.email())
                 .ifPresent(user -> {
                     throw new CustomException(ErrorCode.USER_ALREADY_EXISTS);
                 });
 
-        User user = userRepository.save(User.singUpUser(request.email(),request.name(), passwordEncoder.encode(request.password()), request.phone(), Role.of("USER")));
+        User user = userRepository.save(User.singUpUser(request.email(), request.name(), passwordEncoder.encode(request.password()), request.phone(), Role.of("USER")));
 
         return SignUpResponse.from(user);
     }
 
     @Transactional
-    public SignUpResponse signUpWithPhone(SignUpRequest request){
+    public SignUpResponse signUpWithPhone(SignUpRequest request) {
 
         userValidator.validatePhone(request.phone());
 
-        User user = userRepository.save(User.singUpUser(request.email(),request.name(), passwordEncoder.encode(request.password()), request.phone(), Role.of("USER")));
+        User user = userRepository.save(User.singUpUser(request.email(), request.name(), passwordEncoder.encode(request.password()), request.phone(), Role.of("USER")));
 
         reservationCommandService.linkReservationByPhone(request.phone());
 
@@ -60,31 +60,31 @@ public class UserService {
     }
 
     @Transactional
-    public SignUpResponse adminSignUp(SignUpRequest request){
+    public SignUpResponse adminSignUp(SignUpRequest request) {
         userRepository.findByEmail(request.email())
                 .ifPresent(user -> {
                     throw new CustomException(ErrorCode.USER_ALREADY_EXISTS);
                 });
 
-        User user = userRepository.save(User.singUpUser(request.email(),request.name(), passwordEncoder.encode(request.password()), request.phone(), Role.of("ADMIN")));
+        User user = userRepository.save(User.singUpUser(request.email(), request.name(), passwordEncoder.encode(request.password()), request.phone(), Role.of("ADMIN")));
 
         return SignUpResponse.from(user);
     }
 
     public UserResponse findByToken(String email) {
-        User user = userRepository.findByEmail(email).orElseThrow(()-> new CustomException(ErrorCode.USER_NOT_FOUND));
+        User user = userRepository.findByEmail(email).orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
         return UserResponse.from(user);
     }
 
     @Transactional
     public void deactivateByToken(String email) {
-        User user = userRepository.findByEmail(email).orElseThrow(()-> new CustomException(ErrorCode.USER_NOT_FOUND));
+        User user = userRepository.findByEmail(email).orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
         userRepository.deleteById(user.getId());
     }
 
     @Transactional
-    public void initPhoneNumber(String email, String phone){
-        User user = userRepository.findByEmail(email).orElseThrow(()-> new CustomException(ErrorCode.USER_NOT_FOUND));
+    public void initPhoneNumber(String email, String phone) {
+        User user = userRepository.findByEmail(email).orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
         user.initPhone(phone);
     }
 
