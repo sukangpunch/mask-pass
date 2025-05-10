@@ -4,6 +4,7 @@ import goorm.back.zo6.auth.domain.LoginUser;
 import goorm.back.zo6.common.dto.ResponseDto;
 import goorm.back.zo6.user.application.PhoneValidService;
 import goorm.back.zo6.user.application.UserService;
+import goorm.back.zo6.user.application.UserSignUpService;
 import goorm.back.zo6.user.dto.request.EmailRequest;
 import goorm.back.zo6.user.dto.request.PhoneRequest;
 import goorm.back.zo6.user.dto.request.PhoneValidRequest;
@@ -19,15 +20,15 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.Map;
-
 @Tag(name = "user", description = "User API")
 @RestController
 @RequestMapping("/api/v1/users")
 @RequiredArgsConstructor
 public class UserController {
+
     private final UserService userService;
     private final PhoneValidService phoneValidService;
+    private final UserSignUpService userSignUpService;
 
     @GetMapping("/{userId}")
     @Operation(summary = "id 유저 조회", description = "유저 id로 유저 정보를 조회합니다.")
@@ -46,7 +47,7 @@ public class UserController {
     @Operation(summary = "회원가입(테스트용)", description = "회원가입 정보를 통해 유저를 생성 및 등록 합니다.")
     public ResponseEntity<ResponseDto<SignUpResponse>> signUp(
             @Validated @RequestBody SignUpRequest request) {
-        return ResponseEntity.ok().body(ResponseDto.of(userService.signUp(request)));
+        return ResponseEntity.ok().body(ResponseDto.of(userSignUpService.signUp(request)));
     }
 
     @PostMapping("/signup-link")
