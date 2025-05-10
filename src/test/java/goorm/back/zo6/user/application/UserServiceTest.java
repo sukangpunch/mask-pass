@@ -27,8 +27,6 @@ import static org.mockito.Mockito.*;
 class UserServiceTest {
 
     @InjectMocks
-    private UserSignUpServiceImpl userSignUpService;
-    @InjectMocks
     private UserCommandServiceImpl userCommandService;
     @InjectMocks
     private UserQueryServiceImpl userQueryService;
@@ -109,59 +107,6 @@ class UserServiceTest {
 
         // Verify
         verify(userRepository, times(1)).findByEmail(email);
-    }
-
-    @Test
-    @DisplayName("회원가입 - SignUpResponse 를 반환 성공")
-    void signUp_Success() {
-        // given
-        SignUpRequest request = new SignUpRequest("홍길동","newuser@gmail.com", "1234", "01033334444");
-
-        // 기존 이메일이 존재하지 않음
-        when(userRepository.findByEmail(request.email())).thenReturn(Optional.empty());
-        //  비밀번호 암호화
-        when(passwordEncoder.encode(request.password())).thenReturn("encodedPassword");
-        //  새로운 유저 저장 후 반환
-        User newUser = User.singUpUser(request.email(), request.name(), "encodedPassword", request.phone(), Role.of("USER"));
-        ReflectionTestUtils.setField(newUser,"id",1L);
-        when(userRepository.save(any(User.class))).thenReturn(newUser);
-
-        // when
-        SignUpResponse response = userSignUpService.signUp(request);
-
-        // then
-        assertNotNull(response);
-        assertNotNull(response.id());
-        assertEquals("newuser@gmail.com", response.email());
-        assertEquals("홍길동", response.name());
-        assertEquals("01033334444", response.phone());
-        assertEquals(Role.USER, response.role());
-
-        // Verify
-        verify(userRepository, times(1)).findByEmail(request.email());
-        verify(passwordEncoder, times(1)).encode(request.password());
-        verify(userRepository, times(1)).save(any(User.class));
-    }
-
-    @Test
-    @DisplayName("회원가입 - 이미 존재하는 계정으로 회원가입 예외 발생 실패")
-    void signUp_UserAlreadyExistsFails() {
-        // given
-        SignUpRequest request = new SignUpRequest("홍길동","exist@gmail.com", "1234", "01033334444");
-
-        // 이미 존재하는 유저
-        when(userRepository.findByEmail(request.email())).thenReturn(Optional.of(User.builder().build()));
-
-        // when
-        CustomException exception = assertThrows(CustomException.class, () -> userSignUpService.signUp(request));
-
-        // then
-        assertEquals(ErrorCode.USER_ALREADY_EXISTS, exception.getErrorCode());
-
-        // Verify
-        verify(userRepository, times(1)).findByEmail(request.email());
-        verify(passwordEncoder, never()).encode(anyString());
-        verify(userRepository, never()).save(any(User.class));
     }
 
     @Test
