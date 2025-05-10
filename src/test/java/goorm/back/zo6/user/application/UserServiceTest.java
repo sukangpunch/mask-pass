@@ -27,8 +27,13 @@ import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class UserServiceTest {
+
     @InjectMocks
-    private UserService userService;
+    private UserSignUpServiceImpl userSignUpService;
+    @InjectMocks
+    private UserCommandServiceImpl userCommandService;
+    @InjectMocks
+    private UserQueryServiceImpl userQueryService;
     @Mock
     private UserRepository userRepository;
     @Mock
@@ -69,7 +74,7 @@ class UserServiceTest {
         when(userRepository.findById(userId)).thenReturn(Optional.of(testUser));
 
         // when
-        UserResponse response = userService.findById(userId);
+        UserResponse response = userQueryService.findById(userId);
 
         // then
         assertNotNull(response);
@@ -94,7 +99,7 @@ class UserServiceTest {
         when(userRepository.findByEmail(email)).thenReturn(Optional.of(testUser));
 
         // when
-        UserResponse response = userService.findByToken(email);
+        UserResponse response = userQueryService.findByEmail(email);
 
         // then
         assertNotNull(response);
@@ -124,7 +129,7 @@ class UserServiceTest {
         when(userRepository.save(any(User.class))).thenReturn(newUser);
 
         // when
-        SignUpResponse response = userService.signUp(request);
+        SignUpResponse response = userSignUpService.signUp(request);
 
         // then
         assertNotNull(response);
@@ -150,7 +155,7 @@ class UserServiceTest {
         when(userRepository.findByEmail(request.email())).thenReturn(Optional.of(User.builder().build()));
 
         // when
-        CustomException exception = assertThrows(CustomException.class, () -> userService.signUp(request));
+        CustomException exception = assertThrows(CustomException.class, () -> userSignUpService.signUp(request));
 
         // then
         assertEquals(ErrorCode.USER_ALREADY_EXISTS, exception.getErrorCode());
@@ -175,7 +180,7 @@ class UserServiceTest {
         doNothing().when(userRepository).deleteById(userId);
 
         //when
-        userService.deactivateByToken(testUser.getEmail());
+        userCommandService.deactivateByToken(testUser.getEmail());
 
         //then
         verify(userRepository, times(1)).deleteById(userId);
@@ -193,7 +198,7 @@ class UserServiceTest {
 
         // When
         CustomException exception = assertThrows(CustomException.class, () -> {
-            userService.deactivateByToken(nonExistentEmail);
+            userCommandService.deactivateByToken(nonExistentEmail);
         });
 
         // then
