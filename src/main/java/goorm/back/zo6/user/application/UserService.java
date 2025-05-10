@@ -28,11 +28,6 @@ public class UserService {
     private final UserValidator userValidator;
     private final ReservationCommandService reservationCommandService;
 
-    public UserResponse findById(Long userId) {
-        User user = userRepository.findById(userId).orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
-        return UserResponse.from(user);
-    }
-
     @Transactional
     public SignUpResponse signUp(SignUpRequest request) {
         userRepository.findByEmail(request.email())
@@ -41,6 +36,18 @@ public class UserService {
                 });
 
         User user = userRepository.save(User.singUpUser(request.email(), request.name(), passwordEncoder.encode(request.password()), request.phone(), Role.of("USER")));
+
+        return SignUpResponse.from(user);
+    }
+
+    @Transactional
+    public SignUpResponse adminSignUp(SignUpRequest request) {
+        userRepository.findByEmail(request.email())
+                .ifPresent(user -> {
+                    throw new CustomException(ErrorCode.USER_ALREADY_EXISTS);
+                });
+
+        User user = userRepository.save(User.singUpUser(request.email(), request.name(), passwordEncoder.encode(request.password()), request.phone(), Role.of("ADMIN")));
 
         return SignUpResponse.from(user);
     }
@@ -59,21 +66,18 @@ public class UserService {
         return SignUpResponse.from(user);
     }
 
-    @Transactional
-    public SignUpResponse adminSignUp(SignUpRequest request) {
-        userRepository.findByEmail(request.email())
-                .ifPresent(user -> {
-                    throw new CustomException(ErrorCode.USER_ALREADY_EXISTS);
-                });
-
-        User user = userRepository.save(User.singUpUser(request.email(), request.name(), passwordEncoder.encode(request.password()), request.phone(), Role.of("ADMIN")));
-
-        return SignUpResponse.from(user);
+    public UserResponse findById(Long userId) {
+        User user = userRepository.findById(userId).orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
+        return UserResponse.from(user);
     }
 
     public UserResponse findByToken(String email) {
         User user = userRepository.findByEmail(email).orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
         return UserResponse.from(user);
+    }
+
+    public boolean isEmailAvailable(String email) {
+        return userRepository.findByEmail(email).isEmpty();
     }
 
     @Transactional
@@ -86,9 +90,5 @@ public class UserService {
     public void initPhoneNumber(String email, String phone) {
         User user = userRepository.findByEmail(email).orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
         user.initPhone(phone);
-    }
-
-    public boolean isEmailAvailable(String email) {
-        return userRepository.findByEmail(email).isEmpty();
     }
 }
