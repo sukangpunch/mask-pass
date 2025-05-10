@@ -9,7 +9,6 @@ import goorm.back.zo6.user.domain.UserRepository;
 import goorm.back.zo6.user.dto.request.SignUpRequest;
 import goorm.back.zo6.user.dto.response.SignUpResponse;
 import goorm.back.zo6.user.dto.response.UserResponse;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -23,7 +22,6 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
-
 
 @ExtendWith(MockitoExtension.class)
 class UserServiceTest {
@@ -197,9 +195,7 @@ class UserServiceTest {
         when(userRepository.findByEmail(nonExistentEmail)).thenReturn(Optional.empty());
 
         // When
-        CustomException exception = assertThrows(CustomException.class, () -> {
-            userCommandService.deactivateByToken(nonExistentEmail);
-        });
+        CustomException exception = assertThrows(CustomException.class, () -> userCommandService.deactivateByToken(nonExistentEmail));
 
         // then
         assertEquals(ErrorCode.USER_NOT_FOUND, exception.getErrorCode());
