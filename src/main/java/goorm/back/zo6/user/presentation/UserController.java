@@ -3,6 +3,7 @@ package goorm.back.zo6.user.presentation;
 import goorm.back.zo6.auth.domain.LoginUser;
 import goorm.back.zo6.common.dto.ResponseDto;
 import goorm.back.zo6.user.application.PhoneValidService;
+import goorm.back.zo6.user.application.UserPhoneSignUpService;
 import goorm.back.zo6.user.application.UserService;
 import goorm.back.zo6.user.application.UserSignUpService;
 import goorm.back.zo6.user.dto.request.EmailRequest;
@@ -29,6 +30,7 @@ public class UserController {
     private final UserService userService;
     private final PhoneValidService phoneValidService;
     private final UserSignUpService userSignUpService;
+    private final UserPhoneSignUpService userPhoneSignUpService;
 
     @GetMapping("/{userId}")
     @Operation(summary = "id 유저 조회", description = "유저 id로 유저 정보를 조회합니다.")
@@ -53,7 +55,7 @@ public class UserController {
     @PostMapping("/signup-link")
     @Operation(summary = "회원가입-임시 예매 링크", description = "회원가입 시 임시 예매와 링크 됩니다.")
     public ResponseEntity<ResponseDto<SignUpResponse>> signUpLink(@Validated @RequestBody SignUpRequest request) {
-        return ResponseEntity.ok().body(ResponseDto.of(userService.signUpWithPhone(request)));
+        return ResponseEntity.ok().body(ResponseDto.of(userPhoneSignUpService.signUpWithPhone(request)));
     }
 
     @PutMapping("/phone")
