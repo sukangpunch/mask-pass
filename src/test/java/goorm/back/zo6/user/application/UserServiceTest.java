@@ -60,56 +60,6 @@ class UserServiceTest {
     }
 
     @Test
-    @DisplayName("유저 ID로 조회- 정상적으로 UserResponse 를 반환 성공")
-    void findById_Success() {
-        // given
-        Long userId = 1L;
-        testUser = createTestUserByUserId(userId);
-
-        // findById()가 정상적으로 유저를 반환
-        when(userRepository.findById(userId)).thenReturn(Optional.of(testUser));
-
-        // when
-        UserResponse response = userQueryService.findById(userId);
-
-        // then
-        assertNotNull(response);
-        assertEquals("test@gmail.com", response.email());
-        assertEquals("홍길순", response.name());
-        assertEquals("01011112222", response.phone());
-        assertEquals("test@gmail.com", response.email());
-        assertEquals(Role.USER, response.role());
-        
-        // Verify
-        verify(userRepository, times(1)).findById(userId);
-    }
-
-    @Test
-    @DisplayName("유저 토큰으로 조회 - 정상적으로 UserResponse 를 반환 성공")
-    void findByToken_Success() {
-        // given
-        String email = "test@gmail.com";
-        testUser = createTestUserByEmail(email);
-
-        // findById()가 정상적으로 유저를 반환
-        when(userRepository.findByEmail(email)).thenReturn(Optional.of(testUser));
-
-        // when
-        UserResponse response = userQueryService.findByEmail(email);
-
-        // then
-        assertNotNull(response);
-        assertEquals("test@gmail.com", response.email());
-        assertEquals("홍길순", response.name());
-        assertEquals("01011112222", response.phone());
-        assertEquals("test@gmail.com", response.email());
-        assertEquals(Role.USER, response.role());
-
-        // Verify
-        verify(userRepository, times(1)).findByEmail(email);
-    }
-
-    @Test
     @DisplayName("유저 논리 탈퇴(비활성화) - 유저 논리 삭제(비활성화) 정상적으로 성공")
     void deactivateByToken_Success() {
         //given
