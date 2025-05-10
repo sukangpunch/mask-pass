@@ -24,11 +24,11 @@ import org.springframework.web.bind.annotation.*;
 @RequiredArgsConstructor
 public class UserController {
 
-    private final UserService userService;
     private final PhoneValidService phoneValidService;
     private final UserSignUpService userSignUpService;
     private final UserPhoneSignUpService userPhoneSignUpService;
     private final UserQueryService userQueryService;
+    private final UserCommandService userCommandService;
 
     @GetMapping("/{userId}")
     @Operation(summary = "id 유저 조회", description = "유저 id로 유저 정보를 조회합니다.")
@@ -59,7 +59,7 @@ public class UserController {
     @PutMapping("/phone")
     @Operation(summary = "소셜 로그인 유저 전화번호 등록", description = "소셜 로그인 유저의 전화번호를 등록합니다.")
     public ResponseEntity<String> updatePhone(@AuthenticationPrincipal LoginUser loginUser, @Validated @RequestBody PhoneRequest request) {
-        userService.initPhoneNumber(loginUser.getUsername(), request.phone());
+        userCommandService.initPhoneNumber(loginUser.getUsername(), request.phone());
         return ResponseEntity.ok().body("소셜 로그인 유저 전화번호 등록 완료");
     }
 
@@ -67,7 +67,7 @@ public class UserController {
     @Operation(summary = "유저 논리 탈퇴", description = "유저 토큰으로 유저를 논리 탈퇴(비활성화) 합니다.")
     public ResponseEntity<ResponseDto<String>> deactivateByToken(@AuthenticationPrincipal LoginUser loginUser) {
         String email = loginUser.getUsername();
-        userService.deactivateByToken(email);
+        userCommandService.deactivateByToken(email);
         return ResponseEntity.ok().body(ResponseDto.of("성공적으로 회원 탈퇴하였습니다."));
     }
     @PostMapping("/code")
