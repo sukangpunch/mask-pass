@@ -3,7 +3,7 @@ package goorm.back.zo6.user.presentation;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import goorm.back.zo6.auth.util.JwtUtil;
 import goorm.back.zo6.fixture.UserFixture;
-import goorm.back.zo6.user.application.UserService;
+import goorm.back.zo6.user.application.*;
 import goorm.back.zo6.user.domain.User;
 import goorm.back.zo6.user.domain.UserRepository;
 import goorm.back.zo6.user.dto.request.PhoneRequest;
@@ -63,7 +63,16 @@ class UserControllerTest {
     private UserJpaRepository userJpaRepository;
 
     @Autowired
-    private UserService userService;
+    private UserSignUpServiceImpl userSignUpService;
+
+    @Autowired
+    private UserQueryServiceImpl userQueryService;
+
+    @Autowired
+    private UserCommandServiceImpl userCommandService;
+
+    @Autowired
+    private UserPhoneSignUpServiceImpl userPhoneSignUpService;
 
     @Autowired
     private JwtUtil jwtUtil;
