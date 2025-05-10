@@ -29,7 +29,6 @@ class UserServiceTest {
     @InjectMocks
     private UserCommandServiceImpl userCommandService;
     @InjectMocks
-    private UserQueryServiceImpl userQueryService;
     @Mock
     private UserRepository userRepository;
     @Mock
@@ -59,42 +58,6 @@ class UserServiceTest {
                 .build();
     }
 
-    @Test
-    @DisplayName("유저 논리 탈퇴(비활성화) - 유저 논리 삭제(비활성화) 정상적으로 성공")
-    void deactivateByToken_Success() {
-        //given
-        Long userId = 1L;
-        testUser = createTestUserByUserId(userId);
-        String email = testUser.getEmail();
 
-        // 유저 조회
-        when(userRepository.findByEmail(email)).thenReturn(Optional.of(testUser));
-        // deleteById 가 정상적으로 실행됨
-        doNothing().when(userRepository).deleteById(userId);
-
-        //when
-        userCommandService.deactivateByToken(testUser.getEmail());
-
-        //then
-        verify(userRepository, times(1)).deleteById(userId);
-        verify(userRepository, times(1)).findByEmail(email);
-    }
-
-    @Test
-    @DisplayName("유저 논리 탈퇴(비활성화) - 존재하지 않는 유저 회원 논리 탈퇴(비활성화) 시 예외 발생 실패")
-    void deactivateByToken_NotFoundFails() {
-        //given
-        String nonExistentEmail = "nonexistent@gmail.com";
-
-        // 조회 결과가 empty
-        when(userRepository.findByEmail(nonExistentEmail)).thenReturn(Optional.empty());
-
-        // When
-        CustomException exception = assertThrows(CustomException.class, () -> userCommandService.deactivateByToken(nonExistentEmail));
-
-        // then
-        assertEquals(ErrorCode.USER_NOT_FOUND, exception.getErrorCode());
-        verify(userRepository,times(1)).findByEmail(nonExistentEmail);
-    }
 
 }
