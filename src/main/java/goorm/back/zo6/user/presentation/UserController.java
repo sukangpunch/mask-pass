@@ -2,10 +2,7 @@ package goorm.back.zo6.user.presentation;
 
 import goorm.back.zo6.auth.domain.LoginUser;
 import goorm.back.zo6.common.dto.ResponseDto;
-import goorm.back.zo6.user.application.PhoneValidService;
-import goorm.back.zo6.user.application.UserPhoneSignUpService;
-import goorm.back.zo6.user.application.UserService;
-import goorm.back.zo6.user.application.UserSignUpService;
+import goorm.back.zo6.user.application.*;
 import goorm.back.zo6.user.dto.request.EmailRequest;
 import goorm.back.zo6.user.dto.request.PhoneRequest;
 import goorm.back.zo6.user.dto.request.PhoneValidRequest;
@@ -31,18 +28,19 @@ public class UserController {
     private final PhoneValidService phoneValidService;
     private final UserSignUpService userSignUpService;
     private final UserPhoneSignUpService userPhoneSignUpService;
+    private final UserQueryService userQueryService;
 
     @GetMapping("/{userId}")
     @Operation(summary = "id 유저 조회", description = "유저 id로 유저 정보를 조회합니다.")
     public ResponseEntity<ResponseDto<UserResponse>> getUserById(@PathVariable("userId") Long userId){
-        return ResponseEntity.ok().body(ResponseDto.of(userService.findById(userId)));
+        return ResponseEntity.ok().body(ResponseDto.of(userQueryService.findById(userId)));
     }
 
     @GetMapping
     @Operation(summary = "토큰 유저 조회", description = "유저 토큰으로 유저 정보를 조회합니다.")
     public ResponseEntity<ResponseDto<UserResponse>> getUserByToken(@AuthenticationPrincipal LoginUser loginUser){
         String email = loginUser.getUsername();
-        return ResponseEntity.ok().body(ResponseDto.of(userService.findByToken(email)));
+        return ResponseEntity.ok().body(ResponseDto.of(userQueryService.findByEmail(email)));
     }
 
     @PostMapping("/signup")
@@ -88,6 +86,6 @@ public class UserController {
     @PostMapping("/check-email")
     @Operation(summary = "이메일 중복 확인",description = "입력한 이메일의 중복을 검증합니다.")
     public ResponseEntity<Boolean> verifyEmail(@Valid @RequestBody EmailRequest request){
-        return ResponseEntity.ok().body(userService.isEmailAvailable(request.email()));
+        return ResponseEntity.ok().body(userQueryService.isEmailAvailable(request.email()));
     }
 }
