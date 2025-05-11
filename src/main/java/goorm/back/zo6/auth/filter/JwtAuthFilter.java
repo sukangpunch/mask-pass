@@ -52,8 +52,8 @@ public class JwtAuthFilter extends OncePerRequestFilter {
             setSecuritySession(loginUser);
             filterChain.doFilter(request, response);
 
-        }catch (CustomException e){
-            ErrorCode errorCode =  e.getErrorCode();
+        } catch (CustomException e) {
+            ErrorCode errorCode = e.getErrorCode();
             switch (errorCode) {
                 case WRONG_TYPE_TOKEN, UNSUPPORTED_TOKEN, EXPIRED_TOKEN, UNKNOWN_TOKEN_ERROR ->
                         setResponse(response, errorCode);
@@ -65,16 +65,16 @@ public class JwtAuthFilter extends OncePerRequestFilter {
         }
     }
 
-    private static void setSecuritySession(LoginUser loginUser){
+    private static void setSecuritySession(LoginUser loginUser) {
         log.info("SessionLoginUser : {}", loginUser.getUsername());
 
         Collection<GrantedAuthority> authorities = List.of(new SimpleGrantedAuthority(loginUser.getRole().getRoleSecurity()));
 
-        Authentication authToken = new UsernamePasswordAuthenticationToken(loginUser,null, authorities);
+        Authentication authToken = new UsernamePasswordAuthenticationToken(loginUser, null, authorities);
         SecurityContextHolder.getContext().setAuthentication(authToken);
     }
 
-    private LoginUser getUser(String token){
+    private LoginUser getUser(String token) {
         Long userId = jwtUtil.getUserId(token);
         String email = jwtUtil.getUsername(token);
         String role = jwtUtil.getRole(token);
@@ -82,13 +82,13 @@ public class JwtAuthFilter extends OncePerRequestFilter {
         return new LoginUser(userId, email, role);
     }
 
-    private boolean verifyToken(HttpServletRequest request,String token){
+    private boolean verifyToken(HttpServletRequest request, String token) {
         Boolean isValid = (Boolean) request.getAttribute("isTokenValid");
-        if(isValid != null) return isValid;
+        if (isValid != null) return isValid;
 
         if (token == null || !jwtUtil.validateToken(token)) {
             log.debug("token null or not validate");
-            request.setAttribute("isTokenValid",false);
+            request.setAttribute("isTokenValid", false);
             return false;
         }
 

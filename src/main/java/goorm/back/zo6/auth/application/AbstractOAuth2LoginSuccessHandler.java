@@ -24,7 +24,9 @@ public abstract class AbstractOAuth2LoginSuccessHandler implements Authenticatio
     private final UserRepository userRepository;
 
     protected abstract String getEmail(OAuth2User oAuth2User);
+
     protected abstract Long getUserId(OAuth2User oAuth2User);
+
     protected abstract Role getRole(OAuth2User oAuth2User);
 
     @Override

@@ -16,7 +16,7 @@ public class CookieUtil {
                 .build();
     }
 
-    public static ResponseCookie deleteCookie(String name){
+    public static ResponseCookie deleteCookie(String name) {
         return ResponseCookie.from(name, null)
                 .maxAge(0)
                 .path("/")
@@ -26,16 +26,16 @@ public class CookieUtil {
                 .build();
     }
 
-    public static String findToken(HttpServletRequest request){
+    public static String findToken(HttpServletRequest request) {
         String token = null;
         Cookie[] cookies = request.getCookies();
 
-        if(cookies == null){
+        if (cookies == null) {
             return null;
         }
 
-        for(Cookie cookie : cookies){
-            if(cookie.getName().equals("Authorization")){
+        for (Cookie cookie : cookies) {
+            if (cookie.getName().equals("Authorization")) {
                 token = cookie.getValue();
             }
         }
