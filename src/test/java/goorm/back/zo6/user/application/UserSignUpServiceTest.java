@@ -18,10 +18,12 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.Optional;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.*;
-import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.*;
 import static org.mockito.Mockito.never;
 
@@ -42,27 +44,30 @@ public class UserSignUpServiceTest {
         // given
         SignUpRequest request = new SignUpRequest("홍길동","newuser@gmail.com", "1234", "01033334444");
 
-        when(userRepository.findByEmail(request.email())).thenReturn(Optional.empty());
-        when(passwordEncoder.encode(request.password())).thenReturn("encodedPassword");
+        given(userRepository.findByEmail(request.email())).willReturn(Optional.empty());
+        given(passwordEncoder.encode(request.password())).willReturn("encodedPassword");
 
         User newUser = User.singUpUser(request.email(), request.name(), "encodedPassword", request.phone(), Role.of("USER"));
         ReflectionTestUtils.setField(newUser,"id",1L);
-        when(userRepository.save(any(User.class))).thenReturn(newUser);
+
+        given(userRepository.save(any(User.class))).willReturn(newUser);
 
         // when
         SignUpResponse response = userSignUpService.signUp(request);
 
         // then
-        assertNotNull(response);
-        assertNotNull(response.id());
-        assertEquals("newuser@gmail.com", response.email());
-        assertEquals("홍길동", response.name());
-        assertEquals("01033334444", response.phone());
-        assertEquals(Role.USER, response.role());
+        assertAll(
+                () -> assertThat(response).isNotNull(),
+                () -> assertThat(response.id()).isNotNull(),
+                () -> assertThat(response.email()).isEqualTo("newuser@gmail.com"),
+                () -> assertThat(response.name()).isEqualTo("홍길동"),
+                () -> assertThat(response.phone()).isEqualTo("01033334444"),
+                () -> assertThat(response.role()).isEqualTo(Role.USER)
+        );
 
-        verify(userRepository, times(1)).findByEmail(request.email());
-        verify(passwordEncoder, times(1)).encode(request.password());
-        verify(userRepository, times(1)).save(any(User.class));
+        then(userRepository).should(times(1)).findByEmail(request.email());
+        then(passwordEncoder).should(times(1)).encode(request.password());
+        then(userRepository).should(times(1)).save(any(User.class));
     }
 
     @Test
@@ -71,16 +76,16 @@ public class UserSignUpServiceTest {
         // given
         SignUpRequest request = new SignUpRequest("홍길동","exist@gmail.com", "1234", "01033334444");
 
-        when(userRepository.findByEmail(request.email())).thenReturn(Optional.of(User.builder().build()));
+        given(userRepository.findByEmail(request.email())).willReturn(Optional.of(User.builder().build()));
 
         // when
         CustomException exception = assertThrows(CustomException.class, () -> userSignUpService.signUp(request));
 
         // then
-        assertEquals(ErrorCode.USER_ALREADY_EXISTS, exception.getErrorCode());
+        assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.USER_ALREADY_EXISTS);
 
-        verify(userRepository, times(1)).findByEmail(request.email());
-        verify(passwordEncoder, never()).encode(anyString());
-        verify(userRepository, never()).save(any(User.class));
+        then(userRepository).should(times(1)).findByEmail(request.email());
+        then(passwordEncoder).should(never()).encode(anyString());
+        then(userRepository).should(never()).save(any(User.class));
     }
 }

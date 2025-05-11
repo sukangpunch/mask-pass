@@ -16,8 +16,10 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.Optional;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.*;
 import static org.mockito.Mockito.times;
 
@@ -41,20 +43,22 @@ public class UserQueryServiceTest {
         Long userId = 1L;
         testUser = createTestUserByUserId(userId);
 
-        when(userRepository.findById(userId)).thenReturn(Optional.of(testUser));
+        given(userRepository.findById(userId)).willReturn(Optional.of(testUser));
 
         // when
         UserResponse response = userQueryService.findById(userId);
 
         // then
-        assertNotNull(response);
-        assertEquals("test@gmail.com", response.email());
-        assertEquals("홍길순", response.name());
-        assertEquals("01011112222", response.phone());
-        assertEquals("test@gmail.com", response.email());
-        assertEquals(Role.USER, response.role());
+        assertAll(
+                () -> assertThat(response).isNotNull(),
+                () -> assertThat(response.id()).isEqualTo(userId),
+                () -> assertThat(response.email()).isEqualTo("test@gmail.com"),
+                () -> assertThat(response.name()).isEqualTo("홍길순"),
+                () -> assertThat(response.phone()).isEqualTo("01011112222"),
+                () -> assertThat(response.role()).isEqualTo(Role.USER)
+        );
 
-        verify(userRepository, times(1)).findById(userId);
+        then(userRepository).should(times(1)).findById(userId);
     }
 
     @Test
@@ -64,20 +68,21 @@ public class UserQueryServiceTest {
         String email = "test@gmail.com";
         testUser = createTestUserByEmail(email);
 
-        when(userRepository.findByEmail(email)).thenReturn(Optional.of(testUser));
+        given(userRepository.findByEmail(email)).willReturn(Optional.of(testUser));
 
         // when
         UserResponse response = userQueryService.findByEmail(email);
 
         // then
-        assertNotNull(response);
-        assertEquals("test@gmail.com", response.email());
-        assertEquals("홍길순", response.name());
-        assertEquals("01011112222", response.phone());
-        assertEquals("test@gmail.com", response.email());
-        assertEquals(Role.USER, response.role());
+        assertAll(
+                () -> assertThat(response).isNotNull(),
+                () -> assertThat(response.email()).isEqualTo("test@gmail.com"),
+                () -> assertThat(response.name()).isEqualTo("홍길순"),
+                () -> assertThat(response.phone()).isEqualTo("01011112222"),
+                () -> assertThat(response.role()).isEqualTo(Role.USER)
+        );
 
-        verify(userRepository, times(1)).findByEmail(email);
+        then(userRepository).should(times(1)).findByEmail(email);
     }
 
     private User createTestUserByUserId(Long userId) {

@@ -17,12 +17,12 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.Optional;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.*;
 import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 public class UserCommandServiceTest {
@@ -43,15 +43,15 @@ public class UserCommandServiceTest {
         User testUser = createTestUserByUserId(userId);
         String email = testUser.getEmail();
 
-        when(userRepository.findByEmail(email)).thenReturn(Optional.of(testUser));
+        given(userRepository.findByEmail(email)).willReturn(Optional.of(testUser));
         doNothing().when(userRepository).deleteById(userId);
 
         // when
         userCommandService.deactivateByToken(testUser.getEmail());
 
         // then
-        verify(userRepository, times(1)).deleteById(userId);
-        verify(userRepository, times(1)).findByEmail(email);
+        then(userRepository).should(times(1)).deleteById(userId);
+        then(userRepository).should(times(1)).findByEmail(email);
     }
 
     @Test
@@ -60,14 +60,14 @@ public class UserCommandServiceTest {
         // given
         String nonExistentEmail = "nonexistent@gmail.com";
 
-        when(userRepository.findByEmail(nonExistentEmail)).thenReturn(Optional.empty());
+        given(userRepository.findByEmail(nonExistentEmail)).willReturn(Optional.empty());
 
         // when
         CustomException exception = assertThrows(CustomException.class, () -> userCommandService.deactivateByToken(nonExistentEmail));
 
         // then
-        assertEquals(ErrorCode.USER_NOT_FOUND, exception.getErrorCode());
-        verify(userRepository,times(1)).findByEmail(nonExistentEmail);
+        assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.USER_NOT_FOUND);
+        then(userRepository).should(times(1)).findByEmail(nonExistentEmail);
     }
 
     private User createTestUserByUserId(Long userId) {
