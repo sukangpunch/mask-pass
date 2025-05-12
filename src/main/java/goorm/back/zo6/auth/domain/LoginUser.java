@@ -8,7 +8,10 @@ import java.util.Collection;
 
 public record LoginUser(Long id, String email, String role) implements UserDetails {
 
-    public Long getId(){return id; }
+    public Long getId() {
+        return id;
+    }
+
     @Override
     public String getUsername() {
         return email;

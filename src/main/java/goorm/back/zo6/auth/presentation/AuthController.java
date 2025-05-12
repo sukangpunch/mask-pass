@@ -45,7 +45,7 @@ public class AuthController {
 
     @DeleteMapping("/logout")
     @Operation(summary = "로그아웃", description = "api 요청 시 쿠키를 강제 만료시켜 로그아웃합니다.")
-    public ResponseEntity<ResponseDto> logout(){
+    public ResponseEntity<ResponseDto> logout() {
         ResponseCookie cookie = CookieUtil.deleteCookie(COOKIE_NAME);
         return ResponseEntity.ok()
                 .header(HttpHeaders.SET_COOKIE, cookie.toString())

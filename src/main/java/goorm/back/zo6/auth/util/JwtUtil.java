@@ -21,18 +21,18 @@ public class JwtUtil {
     @Value("${jwt.valid-time}")
     private long TOKEN_VALID_TIME;
 
-    public JwtUtil(@Value("${jwt.secret}") String secret){
+    public JwtUtil(@Value("${jwt.secret}") String secret) {
         secretKey = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
     }
 
-    public String createAccessToken(Long userId, String email, Role role){
+    public String createAccessToken(Long userId, String email, Role role) {
         Date timeNow = new Date(System.currentTimeMillis());
         Date expirationTime = new Date(timeNow.getTime() + TOKEN_VALID_TIME);
 
         return Jwts.builder()
                 .claim("userId", userId)
-                .claim("email",email)
-                .claim("role",role.getRoleSecurity())
+                .claim("email", email)
+                .claim("role", role.getRoleSecurity())
                 .setIssuedAt(timeNow)
                 .setExpiration(expirationTime)
                 .signWith(secretKey, SignatureAlgorithm.HS256)
@@ -43,35 +43,37 @@ public class JwtUtil {
         return Jwts.parserBuilder().setSigningKey(secretKey).build()
                 .parseClaimsJws(token).getBody().get("userId", Long.class);
     }
+
     public String getUsername(String token) {
         return Jwts.parserBuilder().setSigningKey(secretKey).build()
                 .parseClaimsJws(token).getBody().get("email", String.class);
     }
+
     public String getRole(String token) {
         return Jwts.parserBuilder().setSigningKey(secretKey).build()
                 .parseClaimsJws(token).getBody().get("role", String.class);
     }
 
-    public boolean validateToken(String token){
+    public boolean validateToken(String token) {
         //log.info("토큰 유효성 검증 시작");
         return valid(secretKey, token);
     }
 
-    private boolean valid(SecretKey secretKey, String token){
+    private boolean valid(SecretKey secretKey, String token) {
         if (token == null) {
             throw new CustomException(ErrorCode.MISSING_TOKEN);
         }
-        try{
+        try {
             Jws<Claims> claims = Jwts.parserBuilder().setSigningKey(secretKey).build()
                     .parseClaimsJws(token);
             return !claims.getBody().getExpiration().before(new Date());
-        }catch (SignatureException ex){
+        } catch (SignatureException ex) {
             throw new CustomException(ErrorCode.WRONG_TYPE_TOKEN);
-        }catch (MalformedJwtException ex){
+        } catch (MalformedJwtException ex) {
             throw new CustomException(ErrorCode.UNSUPPORTED_TOKEN);
-        }catch (ExpiredJwtException ex){
+        } catch (ExpiredJwtException ex) {
             throw new CustomException(ErrorCode.EXPIRED_TOKEN);
-        }catch (IllegalArgumentException ex){
+        } catch (IllegalArgumentException ex) {
             throw new CustomException(ErrorCode.UNKNOWN_TOKEN_ERROR);
         }
     }
