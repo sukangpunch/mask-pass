@@ -49,7 +49,6 @@
 <img width="600" alt="image" src="https://github.com/user-attachments/assets/267f3ae0-e764-4d24-838f-7e5e54cba930" />
 
 # 서버 아키텍처
-![Frame 2085668070](https://github.com/user-attachments/assets/1dd33013-73fa-4ac2-ad56-11038370e2df)
 
 
 <br />
