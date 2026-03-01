@@ -24,29 +24,27 @@ public class SseService {
 
     public SseEmitter subscribe(Long conferenceId, Long sessionId){
         String eventKey = generateEventKey(conferenceId, sessionId);
-        SseEmitter emitter = emitterRepository.findEmitterByKey(eventKey);
+        SseEmitter newEmitter = new SseEmitter(TIMEOUT);
 
-        // 기존 emitter가 있다면 send 시도로 연결 상태 확인
-        if (emitter != null) {
+        // 원자적으로 교체: 기존 emitter가 있으면 반환, 없으면 null
+        // 이전 코드의 find→check→delete→save 4단계는 레이스 컨디션 발생 가능
+        SseEmitter oldEmitter = emitterRepository.getAndReplace(eventKey, newEmitter);
+        if (oldEmitter != null) {
             try {
-                emitter.send(SseEmitter.event().name("check").data("ping")); // 끊기지 않았다면 이게 보내짐
-                log.info("기존 SSE 연결이 유지 중: {}", eventKey);
-                emitter.complete(); // 새로 연결하므로 기존 건 정리
+                oldEmitter.send(SseEmitter.event().name("check").data("ping"));
+                log.info("기존 SSE 연결이 유지 중이었음, 교체: {}", eventKey);
             } catch (IOException e) {
-                log.info("기존 SSE 연결이 끊김 (CLOSE_WAIT 추정): {}", eventKey);
-                emitter.complete();
+                log.info("기존 SSE 연결이 끊김 (CLOSE_WAIT 추정), 교체: {}", eventKey);
             }
-            emitterRepository.deleteByEventKey(eventKey);
+            oldEmitter.complete(); // 교체된 기존 emitter 정리
         }
 
-        SseEmitter sseEmitter = emitterRepository.save(eventKey, new SseEmitter(TIMEOUT));
+        registerEmitterHandler(eventKey, newEmitter);
 
-        registerEmitterHandler(eventKey, sseEmitter);
-
-        sendToClientFirst(eventKey, sseEmitter);
+        sendToClientFirst(eventKey, newEmitter);
 
         log.info("===  SSE Emitter 개수: {} ===", emitterRepository.countEmitters());
-        return sseEmitter;
+        return newEmitter;
     }
 
     // SseEmitter 를 통해 클라이언트에게 초기 전달용 이벤트를 전송하는 역할을 합니다.
@@ -72,8 +70,11 @@ public class SseService {
             try{
                 emitter.send(event);
             } catch (IOException e) {
-                log.error("전송 실패, eventId ={}, {}", eventKey, e.getMessage());
-                throw new CustomException(ErrorCode.SSE_CONNECTION_FAILED);
+                // @Async 쓰레드에서 예외를 throw해도 호출부로 전파되지 않고 무시됨
+                // 대신 끊긴 emitter를 제거하고 lastKnownCounts도 정리
+                log.warn("SSE 전송 실패(연결 끊김), emitter 제거: eventId={}, {}", eventKey, e.getMessage());
+                emitterRepository.deleteByEventKey(eventKey);
+                lastKnownCounts.remove(eventKey);
             }
         }
     }
@@ -97,6 +98,7 @@ public class SseService {
         sseEmitter.onCompletion(()->{
             log.info("연결이 끝났습니다. : eventId = {}", eventId);
             emitterRepository.deleteByEventKey(eventId);
+            lastKnownCounts.remove(eventId); // 메모리 누수 방지: emitter 종료 시 lastKnownCounts 정리
         });
 
         /*  SSE 연결이 타임아웃되었을 때
@@ -107,6 +109,7 @@ public class SseService {
         sseEmitter.onTimeout(()->{
             log.info("Timeout이 발생했습니다. : eventId={}", eventId);
             emitterRepository.deleteByEventKey(eventId);
+            lastKnownCounts.remove(eventId); // 메모리 누수 방지
         });
 
         /*  SSE 연결 중 에러가 발생했을 때
@@ -117,6 +120,7 @@ public class SseService {
         sseEmitter.onError((e) ->{
             log.info("에러가 발생했습니다. error={}, eventId={}", e.getMessage(),eventId);
             emitterRepository.deleteByEventKey(eventId);
+            lastKnownCounts.remove(eventId); // 메모리 누수 방지
         });
     }
 

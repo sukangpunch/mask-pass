@@ -36,6 +36,11 @@ public class SseEmitterRepository implements EmitterRepository {
     }
 
     @Override
+    public SseEmitter getAndReplace(String eventKey, SseEmitter newEmitter) {
+        return emitters.put(eventKey, newEmitter); // ConcurrentHashMap.put은 원자적으로 교체하고 이전 값을 반환
+    }
+
+    @Override
     public SseEmitter findEmitterByKey(String eventKey) {
         return emitters.get(eventKey);
     }
