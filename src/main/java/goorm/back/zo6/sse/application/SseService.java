@@ -71,7 +71,7 @@ public class SseService {
                 emitter.send(event);
             } catch (IOException e) {
                 // @Async 쓰레드에서 예외를 throw해도 호출부로 전파되지 않고 무시됨
-                // 대신 끊긴 emitter를 제거하고 lastKnownCounts도 정리
+                // 끊긴 emitter만 제거 — lastKnownCounts는 유지해 재연결 시 이전 카운트 전송 가능
                 log.warn("SSE 전송 실패(연결 끊김), emitter 제거: eventId={}, {}", eventKey, e.getMessage());
                 emitterRepository.deleteByEventKey(eventKey);
                 lastKnownCounts.remove(eventKey);
@@ -98,7 +98,7 @@ public class SseService {
         sseEmitter.onCompletion(()->{
             log.info("연결이 끝났습니다. : eventId = {}", eventId);
             emitterRepository.deleteByEventKey(eventId);
-            lastKnownCounts.remove(eventId); // 메모리 누수 방지: emitter 종료 시 lastKnownCounts 정리
+            // lastKnownCounts는 유지 — 재연결 시 이전 카운트를 초기 이벤트로 전송하기 위함
         });
 
         /*  SSE 연결이 타임아웃되었을 때
@@ -109,7 +109,7 @@ public class SseService {
         sseEmitter.onTimeout(()->{
             log.info("Timeout이 발생했습니다. : eventId={}", eventId);
             emitterRepository.deleteByEventKey(eventId);
-            lastKnownCounts.remove(eventId); // 메모리 누수 방지
+            // lastKnownCounts는 유지 — 재연결 시 이전 카운트를 초기 이벤트로 전송하기 위함
         });
 
         /*  SSE 연결 중 에러가 발생했을 때
@@ -120,7 +120,7 @@ public class SseService {
         sseEmitter.onError((e) ->{
             log.info("에러가 발생했습니다. error={}, eventId={}", e.getMessage(),eventId);
             emitterRepository.deleteByEventKey(eventId);
-            lastKnownCounts.remove(eventId); // 메모리 누수 방지
+            // lastKnownCounts는 유지 — 재연결 시 이전 카운트를 초기 이벤트로 전송하기 위함
         });
     }
 
