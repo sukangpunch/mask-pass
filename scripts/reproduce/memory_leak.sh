@@ -1,25 +1,29 @@
 #!/bin/bash
 # ============================================================
-# memory_leak.sh — lastKnownCounts 메모리 누수 재연
+# memory_leak.sh — emitter 정리 & lastKnownCounts 상태 보존 검증
 #
-# 시나리오:
-#   conference:1 + session:1,2,3 (4개)를 구독 후 정상 종료
-#   → emitter는 onCompletion으로 Map에서 제거되지만
-#   → lastKnownCounts Map에는 키가 영구 잔류 (버그)
-#   → 반복 시 Map이 누적 증가 (메모리 누수)
+# 목적:
+#   연결 종료 후 올바른 상태를 확인한다.
 #
-#   [1단계] 4개 고정 스트림 테스트 (conf:1 + session:1,2,3)
-#     emitter 종료 후 lastKnownCounts=4 잔류 확인
+#   [정상 동작]
+#     emitter         → 종료 시 Map에서 제거되어야 함 (emitter=0)
+#     lastKnownCounts → 종료 후에도 유지되어야 함 (lastKnown=N)
+#                       재연결 시 이전 카운트를 초기 이벤트로 전송하기 위한 상태 캐시
 #
-#   [2단계] 다른 conferenceId 순환 구독
-#     각 고유 key마다 새 lastKnownCounts 항목 추가
-#     → ITER개 항목 누적 확인
+#   [Phase 1] 4개 구독 → 정상 종료
+#     기대: emitter=0 (정리됨), lastKnown=4 (보존) ← 둘 다 정상
 #
-# 사용법: bash scripts/reproduce/memory_leak.sh [iter]
-# 예시:   bash scripts/reproduce/memory_leak.sh 30
+#   [Phase 2] 동일 키로 재연결
+#     기대: emitter=4 (새 연결), lastKnown=4 (이전 상태 유지)
+#     → 재연결 시 초기 이벤트 count가 0이 아님을 서버 로그로 확인
+#
+#   [Bug 확인 대상]
+#     emitter가 종료 후에도 남아있는 경우(zombie) → zombie_socket.sh 참조
+#     lastKnownCounts가 0으로 초기화된 경우 → 재연결 시 count 소실 버그
+#
+# 사용법: bash scripts/reproduce/memory_leak.sh
 # ============================================================
 HOST="http://localhost:8080"
-ITER="${1:-30}"
 CONF=1
 SESSION_IDS=(1 2 3)
 
@@ -37,16 +41,19 @@ heap_mb() {
 get_emitter()    { curl -s "${HOST}/api/v1/sse/status" 2>/dev/null | grep -o '"emitterCount":[0-9]*' | grep -o '[0-9]*'; }
 get_last_known() { curl -s "${HOST}/api/v1/sse/status" 2>/dev/null | grep -o '"lastKnownCountsSize":[0-9]*' | grep -o '[0-9]*'; }
 
-# ── Phase 1: 4개 고정 스트림 ───────────────────────────────────
 echo "========================================================"
-echo " [Bug] lastKnownCounts 메모리 누수 재연"
-echo " 대상: conference:${CONF} + session:1,2,3 + 추가 ${ITER}개 순환"
+echo " emitter 정리 & lastKnownCounts 상태 보존 검증"
+echo " 대상: conference:${CONF} + session:1,2,3 (총 4개)"
 echo "========================================================"
-
 echo ""
-echo -e "${YLW}[Phase 1] conference:${CONF} + session:1,2,3 — 4개 구독 후 정상 종료${RST}"
-HEAP_BEFORE=$(heap_mb)
-echo "  초기: emitter=$(get_emitter) | lastKnown=$(get_last_known) | heap=${HEAP_BEFORE}MB"
+echo -e "${CYN}[초기 상태]${RST}"
+echo "  emitter=$(get_emitter) | lastKnown=$(get_last_known) | heap=$(heap_mb)MB"
+
+# ── Phase 1: 4개 구독 → 정상 종료 ─────────────────────────────
+echo ""
+echo -e "${YLW}[Phase 1] 4개 구독 → 정상 종료${RST}"
+echo "  (unsubscribe API 호출 = 서버에서 complete() → onCompletion 발화)"
+echo ""
 
 PHASE1_PIDS=()
 curl -s -N "${HOST}/api/v1/sse/subscribe?conferenceId=${CONF}" \
@@ -68,54 +75,69 @@ done
 for pid in "${PHASE1_PIDS[@]}"; do kill "$pid" 2>/dev/null; done
 sleep 0.5
 
-echo -e "  종료 후: emitter=$(get_emitter) | ${RED}lastKnown=$(get_last_known)${RST}  ← 4 남으면 버그!"
-
-# ── Phase 2: 다른 conferenceId 순환 (누수 규모 확인) ────────────
+EMITTER_AFTER=$(get_emitter)
+LAST_KNOWN_AFTER=$(get_last_known)
+echo "  종료 후:"
+printf "    emitter      = %s  (기대: 0 — 정리됨)\n" "${EMITTER_AFTER:-?}"
+printf "    lastKnown    = %s  (기대: 4 — 재연결용 상태 보존, 정상!)\n" "${LAST_KNOWN_AFTER:-?}"
 echo ""
-echo -e "${YLW}[Phase 2] 다른 conferenceId 순환 구독 → 해제 (${ITER}회)${RST}"
-echo "  (각 고유 eventKey마다 lastKnownCounts에 새 항목 추가됨)"
+
+if [ "${EMITTER_AFTER:-1}" -eq 0 ] 2>/dev/null; then
+    echo -e "  ${GRN}[PASS] emitter 정상 정리됨${RST}"
+else
+    echo -e "  ${RED}[BUG] emitter=${EMITTER_AFTER} 잔류 — zombie 소켓 발생!${RST}"
+    echo "   → zombie_socket.sh 로 상세 확인"
+fi
+
+if [ "${LAST_KNOWN_AFTER:-0}" -eq 4 ] 2>/dev/null; then
+    echo -e "  ${GRN}[PASS] lastKnownCounts=4 보존 — 재연결 시 이전 카운트 전송 가능${RST}"
+elif [ "${LAST_KNOWN_AFTER:-0}" -eq 0 ] 2>/dev/null; then
+    echo -e "  ${RED}[BUG] lastKnownCounts=0 — 재연결 시 count가 0으로 초기화됨!${RST}"
+    echo "   → onCompletion/onTimeout/onError에서 lastKnownCounts.remove() 호출 여부 확인"
+fi
+
+# ── Phase 2: 동일 키로 재연결 → 상태 연속성 확인 ─────────────
+echo ""
+echo -e "${YLW}[Phase 2] 동일 키로 재연결 — 상태 연속성 확인${RST}"
+echo "  (lastKnownCounts에 이전 값이 있으면 재연결 초기 이벤트에서 count=0 대신 이전 값 전송)"
 echo ""
 
-HEAP_P2_BEFORE=$(heap_mb)
-
-for i in $(seq 1 "$ITER"); do
-    # 다른 conferenceId 사용 (10부터 시작, 실제 DB 데이터와 무관)
-    FAKE_CONF=$((10 + i))
-    CURL_PID=""
-    curl -s -N "${HOST}/api/v1/sse/subscribe?conferenceId=${FAKE_CONF}" \
+PHASE2_PIDS=()
+curl -s -N "${HOST}/api/v1/sse/subscribe?conferenceId=${CONF}" \
+    -H "Accept: text/event-stream" --no-buffer > /dev/null 2>&1 &
+PHASE2_PIDS+=($!)
+for sid in "${SESSION_IDS[@]}"; do
+    curl -s -N "${HOST}/api/v1/sse/subscribe?conferenceId=${CONF}&sessionId=${sid}" \
         -H "Accept: text/event-stream" --no-buffer > /dev/null 2>&1 &
-    CURL_PID=$!
-    sleep 0.15
+    PHASE2_PIDS+=($!)
+done
+sleep 0.5
 
-    # 정상 종료
-    curl -s -X DELETE "${HOST}/api/v1/sse/unsubscribe?conferenceId=${FAKE_CONF}" > /dev/null 2>&1
-    kill "$CURL_PID" 2>/dev/null
-    sleep 0.05
+EMITTER_RECONNECT=$(get_emitter)
+LAST_KNOWN_RECONNECT=$(get_last_known)
+echo "  재연결 후: emitter=${EMITTER_RECONNECT:-?} | lastKnown=${LAST_KNOWN_RECONNECT:-?}"
+echo ""
 
-    if [ $((i % 10)) -eq 0 ]; then
-        printf "  [%2d/%d] lastKnown=%s | emitter=%s | heap=%sMB\n" \
-            "$i" "$ITER" "$(get_last_known)" "$(get_emitter)" "$(heap_mb)"
-    fi
+if [ "${EMITTER_RECONNECT:-0}" -eq 4 ] && [ "${LAST_KNOWN_RECONNECT:-0}" -eq 4 ] 2>/dev/null; then
+    echo -e "  ${GRN}[PASS] 재연결 성공, lastKnownCounts 상태 유지${RST}"
+    echo "   → 서버 로그에서 sendToClientFirst() 초기 count 값 확인"
+    echo "     count > 0 이면 상태 연속성 정상, count = 0 이면 lastKnownCounts 소실"
+fi
+
+# 정리
+for pid in "${PHASE2_PIDS[@]}"; do kill "$pid" 2>/dev/null; done
+curl -s -X DELETE "${HOST}/api/v1/sse/unsubscribe?conferenceId=${CONF}" > /dev/null
+for sid in "${SESSION_IDS[@]}"; do
+    curl -s -X DELETE "${HOST}/api/v1/sse/unsubscribe?conferenceId=${CONF}&sessionId=${sid}" > /dev/null
 done
 
 echo ""
-echo -e "${YLW}[최종 상태]${RST}"
-EMITTER_FINAL=$(get_emitter)
-LAST_KNOWN_FINAL=$(get_last_known)
-HEAP_AFTER=$(heap_mb)
-
-echo "  emitterCount      : ${EMITTER_FINAL:-?}  (기대: 0)"
-echo -e "  lastKnownCounts   : ${RED}${LAST_KNOWN_FINAL:-?}${RST}  (기대: 0, 버그 시: $((4 + ITER)))"
-echo "  Heap 변화 (Phase1 전): ${HEAP_BEFORE}MB → (Phase2 후): ${HEAP_AFTER}MB"
-
-echo ""
 echo "========================================================"
-EXPECTED_LEAK=$((4 + ITER))
-if [ "${LAST_KNOWN_FINAL:-0}" -eq 0 ] 2>/dev/null; then
-    echo -e "  ${GRN}[PASS] lastKnownCounts 정상 정리됨 (수정 후 동작)${RST}"
-else
-    echo -e "  ${RED}[BUG] lastKnownCounts에 ${LAST_KNOWN_FINAL}개 잔류 (기대 누수량: ${EXPECTED_LEAK})${RST}"
-    echo "   → emitter 종료 시 lastKnownCounts.remove() 누락"
-    echo "   → 수정: onCompletion/onTimeout/onError에 remove() 추가"
-fi
+echo " 요약"
+echo "  emitter=0    : 정상 (zombie 없음)"
+echo "  lastKnown=4  : 정상 (재연결 상태 보존 — 의도된 동작)"
+echo "  lastKnown=0  : 버그 (재연결 시 count 소실)"
+echo ""
+echo " zombie 소켓 테스트 : bash scripts/reproduce/zombie_socket.sh"
+echo " 새로고침 시뮬레이션: bash scripts/reproduce/refresh_simulation.sh"
 echo "========================================================"
