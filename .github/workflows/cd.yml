@@ -1,95 +1,164 @@
-name: Deploy to EC2
+name: CD
 
 on:
-  push:
-    branches:
-      - main
+  workflow_run:
+    workflows: [ "CI" ]
+    branches: [ main ]
+    types: [ completed ]
 
 jobs:
-  build:
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
-
-      - name: Set up JDK 23
-        uses: actions/setup-java@v4
-        with:
-          java-version: '23'
-          distribution: 'temurin'
-
-      - uses: actions/checkout@v2
-      - name: Create resources folder if not exists
-        run: mkdir -p ./src/main/resources
-      - name: Create application.yml file
-        run: echo "${{ secrets.APPLICATION_YML }}" > ./src/main/resources/application.yml
-      - uses: actions/upload-artifact@v4
-        with:
-          name: application.yml
-          path: ./src/main/resources/application.yml
-
-      - name: Grant execute permission to gradlew
-        run: chmod +x ./gradlew
-
-      - name: Test with Gradle
-        run: ./gradlew clean test
-
-      - name: Build deploy jar
-        run: ./gradlew build
-
-      - name: Send file to the server
-        uses: appleboy/scp-action@master
-        with:
-          host: ${{ secrets.HOST }}
-          username: ${{ secrets.USER }}
-          key: ${{ secrets.SSH_KEY }}
-          port: ${{ secrets.SSH_PORT }}
-          source: "./build/libs/*.jar"
-          target: deploy
-
-      - name: Deploy remote ssh commands using password
-        uses: appleboy/ssh-action@master
-        with:
-          host: ${{ secrets.HOST }}
-          username: ${{ secrets.USER }}
-          key: ${{ secrets.SSH_KEY }}
-          port: ${{ secrets.SSH_PORT }}
-          script_stop: true
-          script: |
-            sh deploy/deploy.sh
-
-  deploy-docs:
-    needs: build
+  build-and-push:
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      pages: write
-      id-token: write
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+
+    outputs:
+      image_tag: ${{ steps.image_meta.outputs.image_tag }}
+      image_name: ${{ steps.image_meta.outputs.image_name }}
+
     steps:
-      - name: Checkout repository
+      - name: 소스 체크아웃
         uses: actions/checkout@v4
 
-      - name: Set up JDK 17
+      - name: Java 21 설정
         uses: actions/setup-java@v4
         with:
-          java-version: '17'
+          java-version: '21'
           distribution: 'temurin'
 
-      - name: Grant execute permission to gradlew
-        run: chmod +x ./gradlew
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
 
-      - name: Generate AsciiDoc HTML
-        run: ./gradlew asciidoctor
+      - name: gradlew 실행 권한 부여
+        run: chmod +x gradlew
 
-      - name: Upload GitHub Pages artifact
-        uses: actions/upload-pages-artifact@v1
+      - name: JAR 빌드 (테스트 제외)
+        run: ./gradlew bootJar -x test
+
+      - name: Docker Buildx 설정
+        uses: docker/setup-buildx-action@v3
+
+      - name: Docker Hub 로그인
+        uses: docker/login-action@v3
         with:
-          path: build/docs/asciidoc
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v2
+      - name: Define image name and tag
+        id: image_meta
+        run: |
+          IMAGE_TAG=$(date +'%Y%m%d-%H%M%S')
+          IMAGE_NAME="${{ secrets.DOCKERHUB_USERNAME }}/mask-pass"
+          echo "image_tag=${IMAGE_TAG}" >> $GITHUB_OUTPUT
+          echo "image_name=${IMAGE_NAME}" >> $GITHUB_OUTPUT
+
+      - name: Docker 이미지 빌드 및 푸시
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.image_meta.outputs.image_name }}:${{ steps.image_meta.outputs.image_tag }}
+          cache-from: type=registry,ref=${{ steps.image_meta.outputs.image_name }}:buildcache
+          cache-to: type=registry,ref=${{ steps.image_meta.outputs.image_name }}:buildcache,mode=max
+
+      - name: Clean up old images from Docker Hub
+        run: |
+          JWT=$(curl -s \
+          -H "Content-Type: application/json" \
+          -X POST \
+          -d "{\"username\": \"${{ secrets.DOCKERHUB_USERNAME }}\", \"password\": \"${{ secrets.DOCKERHUB_PASSWORD }}\"}" \
+          https://hub.docker.com/v2/users/login/ | jq -r .token)
+
+          TAGS=$(curl -s \
+          -H "Authorization: JWT ${JWT}" \
+          "https://hub.docker.com/v2/repositories/${{ secrets.DOCKERHUB_USERNAME }}/mask-pass/tags?page_size=100" \
+          | jq -r '.results[].name' | grep -v 'buildcache' | sort -r)
+
+          echo "$TAGS" | tail -n +3 | while read TAG; do
+          echo "Deleting tag: $TAG"
+          curl -s -X DELETE \
+          -H "Authorization: JWT ${JWT}" \
+          "https://hub.docker.com/v2/repositories/${{ secrets.DOCKERHUB_USERNAME }}/mask-pass/tags/${TAG}/"
+          done
+
+  deploy:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: 소스 체크아웃 (compose 파일 전송용)
+        uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            docker-compose.prod.yml
+          sparse-checkout-cone-mode: false
+
+      - name: SSH 키 설정
+        run: |
+          echo "${{ secrets.DEPLOY_SSH_KEY }}" > deploy_key.pem
+          chmod 600 deploy_key.pem
+
+      - name: 배포 디렉토리 생성
+        run: |
+          ssh -i deploy_key.pem \
+            -o StrictHostKeyChecking=no \
+            -p ${{ secrets.DEPLOY_PORT }} \
+            ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} \
+            "mkdir -p /home/${{ secrets.DEPLOY_USER }}/mask-pass"
+
+      - name: Copy compose file to remote
+        run: |
+          scp -i deploy_key.pem \
+            -o StrictHostKeyChecking=no \
+            -P ${{ secrets.DEPLOY_PORT }} \
+            ./docker-compose.prod.yml \
+            ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:/home/${{ secrets.DEPLOY_USER }}/mask-pass/
+
+      - name: Run deployment on server
+        run: |
+          ssh -i deploy_key.pem \
+            -o StrictHostKeyChecking=no \
+            -p ${{ secrets.DEPLOY_PORT }} \
+            ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} \
+            '
+              set -e
+
+              export DOCKERHUB_USERNAME="${{ secrets.DOCKERHUB_USERNAME }}"
+              export IMAGE_TAG="${{ needs.build-and-push.outputs.image_tag }}"
+              export DB_URL="${{ secrets.DB_URL }}"
+              export DB_USERNAME="${{ secrets.DB_USERNAME }}"
+              export DB_PASSWORD="${{ secrets.DB_PASSWORD }}"
+              export JWT_SECRET="${{ secrets.JWT_SECRET }}"
+              export KAKAO_CLIENT_ID="${{ secrets.KAKAO_CLIENT_ID }}"
+              export KAKAO_CLIENT_SECRET="${{ secrets.KAKAO_CLIENT_SECRET }}"
+              export KAKAO_REDIRECT_URI="${{ secrets.KAKAO_REDIRECT_URI }}"
+              export AWS_ACCESS_KEY="${{ secrets.AWS_ACCESS_KEY }}"
+              export AWS_SECRET_ACCESS_KEY="${{ secrets.AWS_SECRET_ACCESS_KEY }}"
+              export REKOGNITION_COLLECTION_ID="${{ secrets.REKOGNITION_COLLECTION_ID }}"
+              export S3_BUCKET_NAME="${{ secrets.S3_BUCKET_NAME }}"
+              export SERVER_URL="${{ secrets.SERVER_URL }}"
+              export COOKIE_NAME="${{ secrets.COOKIE_NAME }}"
+              export DISCORD_WEBHOOK_URL="${{ secrets.DISCORD_WEBHOOK_URL }}"
+
+              echo "Cleaning up old tagged images (keeping last 2)..."
+              docker images "${DOCKERHUB_USERNAME}/mask-pass" --format "{{.Tag}}" | \
+              sort -r | \
+              tail -n +3 | \
+              xargs -I {} docker rmi "${DOCKERHUB_USERNAME}/mask-pass:{}" || true
+
+              echo "Pruning dangling images..."
+              docker image prune -f
+
+              echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "${DOCKERHUB_USERNAME}" --password-stdin
+              echo "Pulling new image: ${DOCKERHUB_USERNAME}/mask-pass:${IMAGE_TAG}"
+              docker pull "${DOCKERHUB_USERNAME}/mask-pass:${IMAGE_TAG}"
+
+              cd /home/${{ secrets.DEPLOY_USER }}/mask-pass
+              docker compose -f docker-compose.prod.yml down || true
+              docker compose -f docker-compose.prod.yml up -d
+
+              echo "Deployment finished successfully."
+            '

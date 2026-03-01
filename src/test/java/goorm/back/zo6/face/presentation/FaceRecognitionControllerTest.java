@@ -101,9 +101,9 @@ class FaceRecognitionControllerTest {
 
         // when & then
         mockMvc.perform(MockMvcRequestBuilders.multipart("/api/v1/face/upload")
-                        .file(faceImage)
-                        .cookie(new Cookie("Authorization", testToken))
-                        .contentType(MediaType.MULTIPART_FORM_DATA))
+                                .file(faceImage)
+                                .cookie(new Cookie("Authorization", testToken))
+                                .contentType(MediaType.MULTIPART_FORM_DATA))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.rekognitionId").value("rekognition-12345"))
                 .andExpect(jsonPath("$.data.id").value(1L))
@@ -124,8 +124,8 @@ class FaceRecognitionControllerTest {
 
         // when & then
         mockMvc.perform(MockMvcRequestBuilders.multipart("/api/v1/face/upload")
-                        .file(faceImage)
-                        .contentType(MediaType.MULTIPART_FORM_DATA))
+                                .file(faceImage)
+                                .contentType(MediaType.MULTIPART_FORM_DATA))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.message").value("인증에 실패하였습니다. 다시 로그인 해 주세요.")) // 응답 메시지 검증
                 .andDo(print());
@@ -140,8 +140,8 @@ class FaceRecognitionControllerTest {
 
         // when & then
         mockMvc.perform(MockMvcRequestBuilders.delete("/api/v1/face/delete")
-                .cookie(new Cookie("Authorization", testToken))
-                .contentType(MediaType.APPLICATION_JSON))
+                                .cookie(new Cookie("Authorization", testToken))
+                                .contentType(MediaType.APPLICATION_JSON))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data").value("얼굴 이미지 삭제 완료"))
                 .andDo(print());
@@ -155,7 +155,7 @@ class FaceRecognitionControllerTest {
         // given
         // when & then
         mockMvc.perform(MockMvcRequestBuilders.delete("/api/v1/face/delete")
-                        .contentType(MediaType.APPLICATION_JSON))
+                                .contentType(MediaType.APPLICATION_JSON))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.message").value("인증에 실패하였습니다. 다시 로그인 해 주세요.")) // 응답 메시지 검증
                 .andDo(print());
@@ -174,21 +174,20 @@ class FaceRecognitionControllerTest {
         MockMultipartFile faceImage = new MockMultipartFile("faceImage", "face.jpg", MediaType.IMAGE_JPEG_VALUE, new byte[]{1, 2, 3, 4});
         FaceAuthResultResponse response = new FaceAuthResultResponse(userId, 99.5f);
 
-
         when(rekognitionService.authenticationByUserFace(anyLong(), anyLong(), any(MultipartFile.class))).thenReturn(response);
 
         // when & then
         mockMvc.perform(MockMvcRequestBuilders.multipart("/api/v1/face/authentication")
-                .file(faceImage)
-                .param("conferenceId",conferenceId.toString())
-                .param("sessionId",sessionId.toString())
-                .contentType(MediaType.MULTIPART_FORM_DATA))
+                                .file(faceImage)
+                                .param("conferenceId", conferenceId.toString())
+                                .param("sessionId", sessionId.toString())
+                                .contentType(MediaType.MULTIPART_FORM_DATA))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.userId").value("1"))
                 .andExpect(jsonPath("$.data.similarity").value(99.5))
                 .andDo(print());
 
-        verify(rekognitionService, times(1)).authenticationByUserFace(conferenceId, sessionId,faceImage);
+        verify(rekognitionService, times(1)).authenticationByUserFace(conferenceId, sessionId, faceImage);
     }
 
     @Test
@@ -204,27 +203,27 @@ class FaceRecognitionControllerTest {
 
         // when & then
         mockMvc.perform(MockMvcRequestBuilders.multipart("/api/v1/face/authentication")
-                        .file(faceImage)
-                        .param("conferenceId",conferenceId.toString())
-                        .param("sessionId",sessionId.toString())
-                        .contentType(MediaType.MULTIPART_FORM_DATA))
+                                .file(faceImage)
+                                .param("conferenceId", conferenceId.toString())
+                                .param("sessionId", sessionId.toString())
+                                .contentType(MediaType.MULTIPART_FORM_DATA))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.message").value("Rekognition 얼굴 매칭에 실패하였습니다."))
                 .andDo(print());
 
-        verify(rekognitionService, times(1)).authenticationByUserFace(conferenceId, sessionId,faceImage);
+        verify(rekognitionService, times(1)).authenticationByUserFace(conferenceId, sessionId, faceImage);
     }
 
     @Test
     @DisplayName("Rekognition Collection 생성 - 성공")
-    void createCollection_Success() throws Exception{
+    void createCollection_Success() throws Exception {
         // given
         String testToken = "testToken";
 
         // when & then
         mockMvc.perform(MockMvcRequestBuilders.post("/api/v1/face/collection")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .cookie(new Cookie("Authorization", testToken)))
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .cookie(new Cookie("Authorization", testToken)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data").value("Rekognition Collection 생성 완료!")) // 응답 메시지 검증
                 .andDo(print());

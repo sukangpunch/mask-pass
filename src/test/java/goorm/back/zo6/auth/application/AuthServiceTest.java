@@ -35,10 +35,11 @@ class AuthServiceTest {
     private JwtUtil jwtUtil;
     @Mock
     private PasswordEncoder passwordEncoder;
+
     private User testUser;
 
     @BeforeEach
-    void setUp(){
+    void setUp() {
         testUser = User.builder()
                 .name("홍길순")
                 .email("test@gmail.com")
@@ -46,13 +47,13 @@ class AuthServiceTest {
                 .password(Password.from(passwordEncoder.encode("1234")))
                 .role(Role.of("USER"))
                 .build();
-        ReflectionTestUtils.setField(testUser,"id",1L);
+        ReflectionTestUtils.setField(testUser, "id", 1L);
 
     }
-    
+
     @Test
     @DisplayName("로그인 -  accessToken 발급 성공")
-    void login_Success(){
+    void login_Success() {
         // given
         LoginRequest loginRequest = new LoginRequest("test@gmail.com", "1234");
 
@@ -68,7 +69,7 @@ class AuthServiceTest {
 
         // then
         assertNotNull(response);
-        assertEquals("mockToken",response.accessToken());
+        assertEquals("mockToken", response.accessToken());
 
         verify(userRepository, times(1)).findByEmail(loginRequest.email());
         verify(passwordEncoder, times(1)).matches(loginRequest.password(), testUser.getPassword().getValue());

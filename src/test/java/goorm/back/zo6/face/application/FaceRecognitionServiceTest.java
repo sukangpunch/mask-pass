@@ -33,6 +33,7 @@ import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class FaceRecognitionServiceTest {
+
     @InjectMocks
     private FaceRecognitionService faceRecognitionService;
     @Mock
@@ -60,7 +61,7 @@ class FaceRecognitionServiceTest {
         when(userRepository.findById(any(Long.class))).thenReturn(Optional.ofNullable(user));
         when(testFaceImage.getBytes()).thenReturn(imageBytes);
         // collection 저장 성공
-        when(rekognitionApiClient.addFaceToCollection(userId,imageBytes)).thenReturn(rekognitionFaceId);
+        when(rekognitionApiClient.addFaceToCollection(userId, imageBytes)).thenReturn(rekognitionFaceId);
         // Face 객체 저장
         when(faceRepository.save(any(Face.class))).thenReturn(face);
 
@@ -101,6 +102,7 @@ class FaceRecognitionServiceTest {
         verify(rekognitionApiClient, times(1)).addFaceToCollection(userId, imageBytes);
         verify(faceRepository, times(1)).findFaceByUserId(userId);
     }
+
     @Test
     @DisplayName("얼굴 이미지 삭제 - 성공!")
     void deleteFaceImage_Success() {
@@ -177,6 +179,7 @@ class FaceRecognitionServiceTest {
         verify(faceRepository, never()).deleteByUserId(userId);
         verify(userRepository, times(1)).findById(any(Long.class));
     }
+
     @Test
     @DisplayName("얼굴 인식 - 성공")
     void authenticationByUserFace_Success() throws IOException {
@@ -189,7 +192,7 @@ class FaceRecognitionServiceTest {
         MockedStatic<Events> mockEvents = mockStatic(Events.class);
 
         // 정상적인 파일 변환 설정
-        mockEvents.when(()-> Events.raise(any(AttendEvent.class))).thenAnswer(invocation -> null);
+        mockEvents.when(() -> Events.raise(any(AttendEvent.class))).thenAnswer(invocation -> null);
         when(uploadedFile.getBytes()).thenReturn(new byte[]{1, 2, 3});
         ByteBuffer imageBytes = ByteBuffer.wrap(new byte[]{1, 2, 3});
 
@@ -198,7 +201,7 @@ class FaceRecognitionServiceTest {
         when(rekognitionApiClient.authorizeUserFace(imageBytes)).thenReturn(matchingResponse);
 
         // 예매 한 유저 처리
-        when(reservationRepository.existsByUserAndConferenceAndSession(userId,conferenceId,sessionId)).thenReturn(true);
+        when(reservationRepository.existsByUserAndConferenceAndSession(userId, conferenceId, sessionId)).thenReturn(true);
         // when
         FaceAuthResultResponse result = faceRecognitionService.authenticationByUserFace(conferenceId, sessionId, uploadedFile);
 
@@ -207,7 +210,7 @@ class FaceRecognitionServiceTest {
         assertEquals(userId, result.userId());
         assertEquals(similarity, result.similarity());
         verify(rekognitionApiClient, times(1)).authorizeUserFace(imageBytes);
-        verify(reservationRepository,times(1)).existsByUserAndConferenceAndSession(userId,conferenceId,sessionId);
+        verify(reservationRepository, times(1)).existsByUserAndConferenceAndSession(userId, conferenceId, sessionId);
     }
 
     @Test
@@ -229,11 +232,11 @@ class FaceRecognitionServiceTest {
         // when
         CustomException exception = assertThrows(CustomException.class, () -> faceRecognitionService.authenticationByUserFace(conferenceId, sessionId, uploadedFile));
 
-
         // then
         assertEquals(ErrorCode.REKOGNITION_NO_MATCH_FOUND, exception.getErrorCode());
         verify(rekognitionApiClient, times(1)).authorizeUserFace(imageBytes);
     }
+
     // 파일 변환 중 IOException 발생 시 예외 확인
     @Test
     @DisplayName("얼굴 인식 - 파일 변환 중 IOException 발생 시 예외 발생")
@@ -268,7 +271,7 @@ class FaceRecognitionServiceTest {
 
         // then
         assertNotNull(response);
-        assertEquals(expectedArn,response.collectionArn());
+        assertEquals(expectedArn, response.collectionArn());
         verify(rekognitionApiClient, times(1)).createCollection();
     }
 

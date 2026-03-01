@@ -37,3 +37,7 @@ out/
 
 ### VS Code ###
 .vscode/
+
+### volume ###
+postgres_data_local
+redis_data_local

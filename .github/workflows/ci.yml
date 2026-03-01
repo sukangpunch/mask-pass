@@ -1,46 +1,31 @@
-name: Java CI with Gradle
-
+name: CI
 on:
+  push:
+    branches: [ main ]
   pull_request:
-    branches:
-      - '**'
-
+    branches: [ main ]
 jobs:
   build:
     runs-on: ubuntu-latest
-
+    permissions:
+      contents: read
+      checks: write
     steps:
-      - name: Check out repository
+      - name: 소스 체크아웃
         uses: actions/checkout@v4
-
-      - name: Set up JDK 23
+      - name: Java 21 설정
         uses: actions/setup-java@v4
         with:
-          java-version: '23'
+          java-version: '21'
           distribution: 'temurin'
-          
-      - uses: actions/checkout@v2
-      - name: Create resources folder if not exists
-        run: mkdir -p ./src/main/resources
-      - name: Create application.yml file
-        run: echo "${{ secrets.APPLICATION_YML }}" > ./src/main/resources/application.yml
-      - uses: actions/upload-artifact@v4
-        with:
-          name: application.yml
-          path: ./src/main/resources/application.yml
-
-      - name: Cache Gradle packages
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.gradle/caches
-            ~/.gradle/wrapper
-          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
-          restore-keys: |
-            ${{ runner.os }}-gradle-    
-
-      - name: Grant execute permission to gradlew
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+      - name: gradlew 실행 권한 부여
         run: chmod +x ./gradlew
-
-      - name: Test with Gradle
-        run: ./gradlew clean test
+      - name: Build with Gradle Wrapper
+        run: ./gradlew build
+      - name: Publish Test Report
+        uses: mikepenz/action-junit-report@v5
+        if: success() || failure()
+        with:
+          report_paths: '**/build/test-results/test/TEST-*.xml'

@@ -1,0 +1,39 @@
+version: "3.8"
+
+services:
+  mask-pass:
+    image: ${DOCKERHUB_USERNAME}/mask-pass:${IMAGE_TAG}
+    container_name: mask-pass
+    ports:
+      - "8080:8080"
+    environment:
+      - SPRING_PROFILES_ACTIVE=prod
+      - DB_URL=${DB_URL}
+      - DB_USERNAME=${DB_USERNAME}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - JWT_SECRET=${JWT_SECRET}
+      - KAKAO_CLIENT_ID=${KAKAO_CLIENT_ID}
+      - KAKAO_CLIENT_SECRET=${KAKAO_CLIENT_SECRET}
+      - KAKAO_REDIRECT_URI=${KAKAO_REDIRECT_URI}
+      - AWS_ACCESS_KEY=${AWS_ACCESS_KEY}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - REKOGNITION_COLLECTION_ID=${REKOGNITION_COLLECTION_ID}
+      - S3_BUCKET_NAME=${S3_BUCKET_NAME}
+      - SERVER_URL=${SERVER_URL}
+      - COOKIE_NAME=${COOKIE_NAME}
+      - DISCORD_WEBHOOK_URL=${DISCORD_WEBHOOK_URL}
+      - REDIS_HOST=redis
+    volumes:
+      - ./logs:/var/log/spring
+    depends_on:
+      - redis
+    restart: unless-stopped
+
+  redis:
+    image: redis:7.0
+    container_name: mask-pass-redis-prod
+    ports:
+      - "6379:6379"
+    volumes:
+      - ./redis_data:/data
+    restart: unless-stopped
