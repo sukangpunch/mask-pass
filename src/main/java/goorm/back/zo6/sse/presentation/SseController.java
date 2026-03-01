@@ -9,6 +9,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
+import java.util.Map;
+
 @Tag(name = "sse", description = "Sse API")
 @RestController
 @RequestMapping("/api/v1/sse")
@@ -37,6 +39,12 @@ public class SseController {
     public ResponseEntity<Void> clearLastKnownCounts() {
         sseService.clearLastKnownCounts();
         return ResponseEntity.ok().build();
+    }
+
+    @GetMapping("/status")
+    @Operation(summary = "[디버그] SSE 내부 상태 조회", description = "emitter 수 및 lastKnownCounts 크기를 반환합니다. 버그 재연·모니터링 전용입니다.")
+    public ResponseEntity<Map<String, Object>> status() {
+        return ResponseEntity.ok(sseService.getStatus());
     }
 
 

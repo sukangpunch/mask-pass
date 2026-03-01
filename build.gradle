@@ -77,19 +77,12 @@ dependencies {
     implementation 'com.google.zxing:core:3.5.3'
     implementation 'com.google.zxing:javase:3.5.3'
 
-    // aws Rekognition, S3
+    // aws Rekognition
     implementation platform('software.amazon.awssdk:bom:2.20.112')
-    implementation 'software.amazon.awssdk:s3'
     implementation 'software.amazon.awssdk:rekognition'
 
     // Redis
     implementation 'org.springframework.boot:spring-boot-starter-data-redis'
-
-    // Message
-    implementation 'net.nurigo:sdk:4.3.2'
-
-    // 이미지 압축
-    implementation group: 'net.coobird', name: 'thumbnailator', version: '0.4.1'
 
     // discord log
     implementation('com.github.napstr:logback-discord-appender:1.0.0')

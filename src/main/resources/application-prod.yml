@@ -54,8 +54,6 @@ amazon:
     secretKey: ${AWS_SECRET_ACCESS_KEY}
     rekognition:
       collection-id: ${REKOGNITION_COLLECTION_ID}
-    s3:
-      bucket-name: ${S3_BUCKET_NAME}
 
 jwt:
   secret: ${JWT_SECRET}

@@ -74,7 +74,7 @@ public class SecurityConfig {
                 // Redis 테스트용 또는 캐시 데이터 확인용 엔드포인트
                 .requestMatchers("/api/v1/redis").permitAll()
                 // SSE 실시간 구독 관련 - 로그인 없이도 알림 구독 가능
-                .requestMatchers("/api/v1/sse/subscribe", "/api/v1/sse/unsubscribe", "/api/v1/sse/last-count").permitAll()
+                .requestMatchers("/api/v1/sse/subscribe", "/api/v1/sse/unsubscribe", "/api/v1/sse/last-count", "/api/v1/sse/status").permitAll()
                 // 관리자 회원가입 (최초 관리자 등록 목적)
                 .requestMatchers("/api/v1/admin/signup").permitAll()
                 // 관리자 전용 회의 제어 API

@@ -20,7 +20,6 @@ public class SessionFactory {
     private final ConferenceMapper conferenceMapper;
 
     public Set<SessionDto> createSessionDtos(List<Reservation> reservations) {
-
         return reservations.stream()
                 .flatMap(reservation -> reservation.getReservationSessions().stream())
                 .map(ReservationSession::getSession)
@@ -29,9 +28,6 @@ public class SessionFactory {
     }
 
     public Session createSession(SessionCreateRequest request, Conference conference) {
-
-        String speakerImageKey = parseSpeakerImageKey(request.speakerImage());
-
         return Session.builder()
                         .name(request.name())
                         .capacity(request.capacity())
@@ -42,15 +38,8 @@ public class SessionFactory {
                         .speakerName(request.speakerName())
                         .speakerOrganization(request.speakerOrganization())
                         .isActive(true)
-                        .speakerImageKey(speakerImageKey)
+                        .speakerImageKey(request.speakerImage())
                         .conference(conference)
                         .build();
-    }
-
-    private String parseSpeakerImageKey(String speakerImageUrl) {
-        if (speakerImageUrl == null || !speakerImageUrl.contains("/conference/images")) {
-            throw new IllegalArgumentException("Invalid speaker image url");
-        }
-        return speakerImageUrl.substring(speakerImageUrl.indexOf("conference/images"));
     }
 }

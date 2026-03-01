@@ -147,4 +147,13 @@ public class SseService {
         log.info("LastKnownCounts Map 저장소 정보 초기화");
     }
 
+    /** 재연·모니터링용: 현재 내부 상태 스냅샷 */
+    public Map<String, Object> getStatus() {
+        return Map.of(
+            "emitterCount", emitterRepository.countEmitters(),
+            "lastKnownCountsSize", lastKnownCounts.size(),
+            "lastKnownCountsKeys", lastKnownCounts.keySet()
+        );
+    }
+
 }

@@ -1,5 +1,9 @@
 package goorm.back.zo6.sse.infrastructure;
 
+import io.micrometer.core.instrument.Gauge;
+import io.micrometer.core.instrument.MeterRegistry;
+import jakarta.annotation.PostConstruct;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
@@ -7,8 +11,17 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 @Repository
+@RequiredArgsConstructor
 public class SseEmitterRepository implements EmitterRepository {
     private final Map<String, SseEmitter> emitters = new ConcurrentHashMap<>();
+    private final MeterRegistry meterRegistry;
+
+    @PostConstruct
+    public void registerMetrics() {
+        Gauge.builder("sse.emitter.count", emitters, Map::size)
+                .description("현재 활성 SSE Emitter 수")
+                .register(meterRegistry);
+    }
 
     @Override
     public SseEmitter save(String eventKey, SseEmitter sseEmitter) {

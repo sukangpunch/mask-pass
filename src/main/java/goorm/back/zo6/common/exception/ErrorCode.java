@@ -2,8 +2,6 @@ package goorm.back.zo6.common.exception;
 
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
-import org.apache.coyote.http11.Http11InputBuffer;
-import org.apache.tomcat.util.http.parser.HttpParser;
 import org.springframework.http.HttpStatus;
 
 
@@ -38,15 +36,7 @@ public enum ErrorCode {
     UNKNOWN_TOKEN_ERROR(HttpStatus.BAD_REQUEST,"토큰의 값이 존재하지 않습니다."),
     MISSING_TOKEN(HttpStatus.BAD_REQUEST, "토큰이 존재하지 않습니다."),
 
-    // S3 Error
-    FILE_UPLOAD_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "파일 업로드에 실패하였습니다."),
-    FILE_DELETE_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "파일 삭제에 실패하였습니다."),
-    UNSUPPORTED_FILE_EXTENSION(HttpStatus.BAD_REQUEST, "허용되지 않는 파일 확장자 입니다."),
-    INVALID_FILE_NAME(HttpStatus.BAD_REQUEST, "파일 이름이 없거나 확장자가 없습니다."),
-    PRESIGNED_URL_GENERATION_FAILED(HttpStatus.BAD_REQUEST, "이미지 조회 PresignedUrl 을 생성할 수 없습니다."),
-
     // Rekognition Error
-    REKOGNITION_UPLOAD_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "Rekognition Collection 에서 이미지 업로드를 실패하였습니다."),
     REKOGNITION_DELETE_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "Rekognition Collection 에서 이미지 삭제를 실패하였습니다."),
     REKOGNITION_NO_MATCH_FOUND(HttpStatus.BAD_REQUEST, "Rekognition 얼굴 매칭에 실패하였습니다."),
     REKOGNITION_API_FAILURE(HttpStatus.INTERNAL_SERVER_ERROR,"Rekognition Api 호출 시 문제가 발생하였습니다."),
