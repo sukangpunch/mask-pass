@@ -51,6 +51,7 @@ public class SecurityConfig {
         http.authorizeHttpRequests(auth -> auth
                 // Swagger 및 시스템 모니터링 경로 - 문서 확인 및 상태 체크용
                 .requestMatchers("/swagger-ui/**", "/v3/api-docs/**", "/swagger-resources/**", "/webjars/**", "/actuator/**").permitAll()
+                .requestMatchers("/actuator/**").permitAll()
                 // 사용자 인증 관련 공개 API - 회원가입, 로그인, 이메일 인증 등
                 .requestMatchers(
                         "/api/v1/users/signup", "/api/v1/auth/login",

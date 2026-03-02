@@ -45,8 +45,12 @@ PIDS=()
 # ── 헬퍼 ─────────────────────────────────────────────────────
 heap_mb() {
     HEAP=$(curl -s "${HOST}/actuator/metrics/jvm.memory.used?tag=area:heap" 2>/dev/null \
-        | grep -o '"value":[0-9.]*' | head -1 | grep -o '[0-9.]*')
-    echo "scale=1; ${HEAP:-0} / 1048576" | bc 2>/dev/null || echo "?"
+        | grep -o '"value":[0-9.E+\-]*' | head -1 | grep -o '[0-9.E+\-]*')
+    if [ -z "${HEAP}" ]; then
+        echo "?"
+    else
+        awk "BEGIN {printf \"%.1f\", ${HEAP} / 1048576}"
+    fi
 }
 
 get_status() {

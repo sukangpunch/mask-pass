@@ -16,6 +16,7 @@ public class SseEmitterRepository implements EmitterRepository {
     private final Map<String, SseEmitter> emitters = new ConcurrentHashMap<>();
     private final MeterRegistry meterRegistry;
 
+
     @PostConstruct
     public void registerMetrics() {
         Gauge.builder("sse.emitter.count", emitters, Map::size)

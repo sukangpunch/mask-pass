@@ -36,10 +36,14 @@ get_status() {
     echo "emitter=${EMITTER:-?}개 | lastKnownCounts=${LAST:-?}개"
 }
 
-get_heap_mb() {
+heap_mb() {
     HEAP=$(curl -s "${HOST}/actuator/metrics/jvm.memory.used?tag=area:heap" 2>/dev/null \
-        | grep -o '"value":[0-9.]*' | head -1 | grep -o '[0-9.]*')
-    echo "scale=1; ${HEAP:-0} / 1048576" | bc 2>/dev/null || echo "?"
+        | grep -o '"value":[0-9.E+\-]*' | head -1 | grep -o '[0-9.E+\-]*')
+    if [ -z "${HEAP}" ]; then
+        echo "?"
+    else
+        awk "BEGIN {printf \"%.1f\", ${HEAP} / 1048576}"
+    fi
 }
 
 connect_all() {
@@ -115,7 +119,7 @@ echo ""
 echo "========================================================"
 echo " 결과 요약"
 echo -e "  emitterCount       : ${RED}${EMITTER_COUNT:-?}${RST}  (기대값: 0, 버그 시: ${TOTAL})"
-echo -e "  lastKnownCounts    : ${RED}${LAST_KNOWN:-?}${RST}  (기대값: 0, 버그 시: ${TOTAL})"
+echo -e "  lastKnownCounts    : ${RED}${LAST_KNOWN:-?}${RST}  (기대값: ${TOTAL}, 버그 시: 0)"
 echo ""
 if [ "${EMITTER_COUNT}" -eq 0 ] 2>/dev/null; then
     echo -e "  ${GRN}[PASS] emitter 정상 정리됨 (onError/onCompletion 발화)${RST}"

@@ -47,5 +47,4 @@ public class SseController {
         return ResponseEntity.ok(sseService.getStatus());
     }
 
-
 }

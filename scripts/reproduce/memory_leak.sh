@@ -34,9 +34,13 @@ CYN='\033[0;36m'
 RST='\033[0m'
 
 heap_mb() {
-    VAL=$(curl -s "${HOST}/actuator/metrics/jvm.memory.used?tag=area:heap" 2>/dev/null \
-        | grep -o '"value":[0-9.]*' | head -1 | grep -o '[0-9.]*')
-    echo "scale=1; ${VAL:-0} / 1048576" | bc 2>/dev/null || echo "?"
+    HEAP=$(curl -s "${HOST}/actuator/metrics/jvm.memory.used?tag=area:heap" 2>/dev/null \
+        | grep -o '"value":[0-9.E+\-]*' | head -1 | grep -o '[0-9.E+\-]*')
+    if [ -z "${HEAP}" ]; then
+        echo "?"
+    else
+        awk "BEGIN {printf \"%.1f\", ${HEAP} / 1048576}"
+    fi
 }
 get_emitter()    { curl -s "${HOST}/api/v1/sse/status" 2>/dev/null | grep -o '"emitterCount":[0-9]*' | grep -o '[0-9]*'; }
 get_last_known() { curl -s "${HOST}/api/v1/sse/status" 2>/dev/null | grep -o '"lastKnownCountsSize":[0-9]*' | grep -o '[0-9]*'; }
