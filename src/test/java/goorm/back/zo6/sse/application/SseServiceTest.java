@@ -12,7 +12,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.io.IOException;
-import java.util.function.Consumer;
+import java.util.Collections;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
@@ -28,7 +29,8 @@ class SseServiceTest {
     @Mock
     private EmitterRepository emitterRepository;
 
-    private static final long TIMEOUT = 1800*1000L;
+    private static final long TIMEOUT = 1800 * 1000L;
+    private static final String USER_ID = "device-uuid-001";
 
     @Test
     @DisplayName("sse 연결 - 컨퍼런스 기기 sse 연결 성공")
@@ -36,17 +38,18 @@ class SseServiceTest {
         // given
         Long conferenceId = 1L;
         Long sessionId = null;
-        String eventKey = "conference:1";
+        String baseKey = "conference:1";
         SseEmitter mockEmitter = new SseEmitter(TIMEOUT);
 
-        when(emitterRepository.save(eq(eventKey), any(SseEmitter.class))).thenReturn(mockEmitter);
+        when(emitterRepository.findEmittersByBaseKey(baseKey)).thenReturn(Collections.emptyMap());
+        when(emitterRepository.save(eq(baseKey), eq(USER_ID), any(SseEmitter.class))).thenReturn(mockEmitter);
 
         // when
-        SseEmitter sseEmitter = sseService.subscribe(conferenceId, sessionId );
+        SseEmitter sseEmitter = sseService.subscribe(conferenceId, sessionId, USER_ID);
 
         // then
         assertNotNull(sseEmitter);
-        verify(emitterRepository, times(1)).save(eq(eventKey), any(SseEmitter.class));
+        verify(emitterRepository, times(1)).save(eq(baseKey), eq(USER_ID), any(SseEmitter.class));
     }
 
     @Test
@@ -55,31 +58,81 @@ class SseServiceTest {
         // given
         Long conferenceId = 1L;
         Long sessionId = 2L;
-        String eventKey = "conference:1:session:2";
+        String baseKey = "conference:1:session:2";
         SseEmitter mockEmitter = new SseEmitter(TIMEOUT);
 
-        when(emitterRepository.save(eq(eventKey), any(SseEmitter.class))).thenReturn(mockEmitter);
+        when(emitterRepository.findEmittersByBaseKey(baseKey)).thenReturn(Collections.emptyMap());
+        when(emitterRepository.save(eq(baseKey), eq(USER_ID), any(SseEmitter.class))).thenReturn(mockEmitter);
 
         // when
-        SseEmitter sseEmitter = sseService.subscribe(conferenceId, sessionId);
+        SseEmitter sseEmitter = sseService.subscribe(conferenceId, sessionId, USER_ID);
 
         // then
         assertNotNull(sseEmitter);
-        verify(emitterRepository, times(1)).save(eq(eventKey), any(SseEmitter.class));
+        verify(emitterRepository, times(1)).save(eq(baseKey), eq(USER_ID), any(SseEmitter.class));
     }
 
     @Test
-    @DisplayName("sse 연결 - conferenceId 가 null sse 연결 실패")
+    @DisplayName("sse 연결 - conferenceId 가 null 이면 연결 실패")
     void subscribe_NoneConferenceFails() {
         // given
         Long conferenceId = null;
         Long sessionId = 2L;
 
-        // when
-        CustomException exception = assertThrows(CustomException.class, () -> sseService.subscribe(conferenceId, sessionId));
-        // then
+        // when & then
+        CustomException exception = assertThrows(CustomException.class,
+                () -> sseService.subscribe(conferenceId, sessionId, USER_ID));
         assertEquals(ErrorCode.MISSING_REQUIRED_PARAMETER, exception.getErrorCode());
         verifyNoInteractions(emitterRepository);
+    }
+
+    @Test
+    @DisplayName("sse 연결 - 동일 userId로 재연결 시 기존 Emitter를 교체한다")
+    void subscribe_ReplacesExistingEmitter() throws IOException {
+        // given
+        Long conferenceId = 1L;
+        Long sessionId = null;
+        String baseKey = "conference:1";
+        SseEmitter existingEmitter = mock(SseEmitter.class);
+        SseEmitter newEmitter = new SseEmitter(TIMEOUT);
+
+        when(emitterRepository.findEmittersByBaseKey(baseKey))
+                .thenReturn(Map.of(USER_ID, existingEmitter));
+        when(emitterRepository.save(eq(baseKey), eq(USER_ID), any(SseEmitter.class))).thenReturn(newEmitter);
+
+        // when
+        SseEmitter result = sseService.subscribe(conferenceId, sessionId, USER_ID);
+
+        // then
+        assertNotNull(result);
+        verify(existingEmitter, times(1)).complete();
+        verify(emitterRepository, times(1)).deleteByKey(baseKey, USER_ID);
+        verify(emitterRepository, times(1)).save(eq(baseKey), eq(USER_ID), any(SseEmitter.class));
+    }
+
+    @Test
+    @DisplayName("sse 연결 - 서로 다른 userId는 서로의 연결을 끊지 않는다")
+    void subscribe_DifferentUsersDontEvictEachOther() {
+        // given
+        Long conferenceId = 1L;
+        Long sessionId = null;
+        String baseKey = "conference:1";
+        String userA = "device-uuid-A";
+        String userB = "device-uuid-B";
+        SseEmitter emitterA = new SseEmitter(TIMEOUT);
+        SseEmitter emitterB = new SseEmitter(TIMEOUT);
+
+        // userA의 기존 emitter가 없는 상태에서 userB가 접속해도 아무 emitter도 끊기지 않아야 한다
+        when(emitterRepository.findEmittersByBaseKey(baseKey)).thenReturn(Map.of(userA, emitterA));
+        when(emitterRepository.save(eq(baseKey), eq(userB), any(SseEmitter.class))).thenReturn(emitterB);
+
+        // when
+        SseEmitter result = sseService.subscribe(conferenceId, sessionId, userB);
+
+        // then
+        assertNotNull(result);
+        // userA의 emitter에 대한 complete()나 deleteByKey()가 호출되지 않아야 한다
+        verify(emitterRepository, never()).deleteByKey(baseKey, userA);
     }
 
     @Test
@@ -89,10 +142,10 @@ class SseServiceTest {
         Long conferenceId = 1L;
         Long sessionId = null;
         long count = 10;
-        String eventKey = "conference:1";
+        String baseKey = "conference:1";
         SseEmitter mockEmitter = mock(SseEmitter.class);
 
-        when(emitterRepository.findEmitterByKey(eventKey)).thenReturn(mockEmitter);
+        when(emitterRepository.findEmittersByBaseKey(baseKey)).thenReturn(Map.of(USER_ID, mockEmitter));
 
         // when
         sseService.sendAttendanceCount(conferenceId, sessionId, count);
@@ -108,10 +161,10 @@ class SseServiceTest {
         Long conferenceId = 1L;
         Long sessionId = 2L;
         long count = 10;
-        String eventKey = "conference:1:session:2";
+        String baseKey = "conference:1:session:2";
         SseEmitter mockEmitter = mock(SseEmitter.class);
 
-        when(emitterRepository.findEmitterByKey(eventKey)).thenReturn(mockEmitter);
+        when(emitterRepository.findEmittersByBaseKey(baseKey)).thenReturn(Map.of(USER_ID, mockEmitter));
 
         // when
         sseService.sendAttendanceCount(conferenceId, sessionId, count);
@@ -121,30 +174,43 @@ class SseServiceTest {
     }
 
     @Test
-    @DisplayName("실시간 참석자 수 count 전송 - IOException 발생 실패")
-    void sendAttendanceCount_IOExceptionErrors() throws IOException {
+    @DisplayName("실시간 참석자 수 count 전송 - 해당 baseKey에 Emitter가 없으면 아무 동작 없이 종료")
+    void sendAttendanceCount_NoEmitter_DoesNothing() {
         // given
         Long conferenceId = 1L;
         Long sessionId = 2L;
         long count = 10;
-        String eventKey = "conference:1:session:2";
-        SseEmitter mockEmitter = mock(SseEmitter.class);
+        String baseKey = "conference:1:session:2";
 
-        // emitterRepository에서 해당 eventKey에 대한 Emitter 반환
-        when(emitterRepository.findEmitterByKey(eventKey)).thenReturn(mockEmitter);
-        // send() 호출 시 강제로 IOException 발생하도록 설정
-        doThrow(new IOException("SSE 전송 실패")).when(mockEmitter).send(any(SseEmitter.SseEventBuilder.class));
+        when(emitterRepository.findEmittersByBaseKey(baseKey)).thenReturn(Collections.emptyMap());
 
         // when & then
-        CustomException exception = assertThrows(CustomException.class, () -> sseService.sendAttendanceCount(conferenceId, sessionId, count));
-
-        // 로그 출력 및 emitterRepository에서 삭제가 이루어졌는지 확인
-        assertEquals(ErrorCode.SSE_CONNECTION_FAILED, exception.getErrorCode());
-        verify(emitterRepository, times(1)).findEmitterByKey(eventKey);
+        assertDoesNotThrow(() -> sseService.sendAttendanceCount(conferenceId, sessionId, count));
+        verify(emitterRepository, times(1)).findEmittersByBaseKey(baseKey);
+        verifyNoMoreInteractions(emitterRepository);
     }
 
     @Test
-    @DisplayName("실시간 참석자 수 count 전송 - conferenceId 가 null 실패")
+    @DisplayName("실시간 참석자 수 count 전송 - IOException 발생 시 해당 Emitter를 정리하고 계속 진행한다")
+    void sendAttendanceCount_IOExceptionCleansUpEmitter() throws IOException {
+        // given
+        Long conferenceId = 1L;
+        Long sessionId = 2L;
+        long count = 10;
+        String baseKey = "conference:1:session:2";
+        SseEmitter mockEmitter = mock(SseEmitter.class);
+
+        when(emitterRepository.findEmittersByBaseKey(baseKey)).thenReturn(Map.of(USER_ID, mockEmitter));
+        doThrow(new IOException("SSE 전송 실패")).when(mockEmitter).send(any(SseEmitter.SseEventBuilder.class));
+
+        // when & then — IOException은 더 이상 CustomException으로 전파되지 않고 해당 emitter만 정리된다
+        assertDoesNotThrow(() -> sseService.sendAttendanceCount(conferenceId, sessionId, count));
+        verify(mockEmitter, times(1)).complete();
+        verify(emitterRepository, times(1)).deleteByKey(baseKey, USER_ID);
+    }
+
+    @Test
+    @DisplayName("실시간 참석자 수 count 전송 - conferenceId 가 null 이면 실패")
     void sendAttendanceCount_NoneConferenceFails() {
         // given
         Long conferenceId = null;
@@ -152,94 +218,51 @@ class SseServiceTest {
         long count = 10;
 
         // when & then
-        CustomException exception = assertThrows(CustomException.class, () -> sseService.sendAttendanceCount(conferenceId, sessionId, count));
-
-        // 로그 출력 및 emitterRepository 에서 삭제가 이루어졌는지 확인
+        CustomException exception = assertThrows(CustomException.class,
+                () -> sseService.sendAttendanceCount(conferenceId, sessionId, count));
         assertEquals(ErrorCode.MISSING_REQUIRED_PARAMETER, exception.getErrorCode());
         verifyNoInteractions(emitterRepository);
     }
 
     @Test
-    @DisplayName("SSE 참석자 수 전송 - Emitter 가 null 일 때 아무 동작 없이 종료")
-    void sendAttendanceCount_NoneEmitterFails() {
-        // Given
-        Long conferenceId = 1L;
-        Long sessionId = 2L;
-        long count = 10;
-        String eventKey = "conference:1:session:2";
+    @DisplayName("Heartbeat - 연결된 모든 Emitter에 ping 이벤트를 전송한다")
+    void sendHeartbeat_SendsPingToAllEmitters() throws IOException {
+        // given
+        SseEmitter emitter1 = mock(SseEmitter.class);
+        SseEmitter emitter2 = mock(SseEmitter.class);
 
-        // emitterRepository가 null을 반환하도록 설정
-        when(emitterRepository.findEmitterByKey(eventKey)).thenReturn(null);
+        Map<String, Map<String, SseEmitter>> allEmitters = Map.of(
+                "conference:1", Map.of("userA", emitter1),
+                "conference:2", Map.of("userB", emitter2)
+        );
+        when(emitterRepository.findAllEmitters()).thenReturn(allEmitters);
 
-        // When & Then (예외가 발생하지 않고 정상 종료되는지 확인)
-        assertDoesNotThrow(() -> sseService.sendAttendanceCount(conferenceId, sessionId, count));
+        // when
+        sseService.sendHeartbeat();
 
-        // emitter.send()가 호출되지 않았는지 검증
-        verify(emitterRepository, times(1)).findEmitterByKey(eventKey);
-        verifyNoMoreInteractions(emitterRepository);
+        // then
+        verify(emitter1, times(1)).send(any(SseEmitter.SseEventBuilder.class));
+        verify(emitter2, times(1)).send(any(SseEmitter.SseEventBuilder.class));
     }
 
     @Test
-    @DisplayName("SSE 연결 정상 종료 - onCompletion() 호출 시 Emitter 삭제")
-    void registerEmitterHandler_OnCompletion_ShouldDeleteEmitter() throws Exception {
-        // Given
-        String eventId = "conference:1:session:2";
-        SseEmitter sseEmitter = new SseEmitter();
+    @DisplayName("Heartbeat - IOException 발생 시 해당 Emitter를 정리한다")
+    void sendHeartbeat_CleansUpDeadEmitterOnIOException() throws IOException {
+        // given
+        SseEmitter deadEmitter = mock(SseEmitter.class);
+        String baseKey = "conference:1";
 
-        // When
-        sseService.registerEmitterHandler(eventId, sseEmitter);
-        // 직접 핸들러 실행
-        Runnable onCompletionHandler = ()->{
-            emitterRepository.deleteByEventKey(eventId);
-        };
+        Map<String, Map<String, SseEmitter>> allEmitters = Map.of(
+                baseKey, Map.of(USER_ID, deadEmitter)
+        );
+        when(emitterRepository.findAllEmitters()).thenReturn(allEmitters);
+        doThrow(new IOException("broken pipe")).when(deadEmitter).send(any(SseEmitter.SseEventBuilder.class));
 
-        onCompletionHandler.run();
+        // when
+        sseService.sendHeartbeat();
 
-        // Then
-        verify(emitterRepository, times(1)).deleteByEventKey(eventId);
+        // then
+        verify(deadEmitter, times(1)).complete();
+        verify(emitterRepository, times(1)).deleteByKey(baseKey, USER_ID);
     }
-
-    @Test
-    @DisplayName("SSE 타임아웃 발생 - onTimeout() 호출 시 Emitter 삭제")
-    void registerEmitterHandler_OnTimeout_ShouldDeleteEmitter() {
-        // Given
-        String eventId = "conference:1:session:2";
-        SseEmitter sseEmitter = new SseEmitter();
-
-        // When
-        sseService.registerEmitterHandler(eventId, sseEmitter);
-
-        // 직접 Runnable 실행
-        Runnable onTimeoutHandler = () -> {
-            emitterRepository.deleteByEventKey(eventId);
-        };
-
-        onTimeoutHandler.run();
-
-        // Then
-        verify(emitterRepository, times(1)).deleteByEventKey(eventId);
-    }
-
-    @Test
-    @DisplayName("SSE 에러 발생 - onError() 호출 시 Emitter 삭제")
-    void registerEmitterHandler_OnError_ShouldDeleteEmitter() {
-        // Given
-        String eventId = "conference:1:session:2";
-        SseEmitter sseEmitter = new SseEmitter();
-
-        // When
-        sseService.registerEmitterHandler(eventId, sseEmitter);
-
-        // 직접 실행하도록 Consumer 람다 등록
-        Consumer<Throwable> onErrorHandler = (e) -> {
-            emitterRepository.deleteByEventKey(eventId);
-        };
-
-        // 직접 실행
-        onErrorHandler.accept(new IOException("ERR_INCOMPLETE_CHUNKED_ENCODING"));
-
-        // Then
-        verify(emitterRepository, times(1)).deleteByEventKey(eventId);
-    }
-
 }

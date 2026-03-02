@@ -5,6 +5,7 @@ import goorm.back.zo6.common.exception.ErrorCode;
 import goorm.back.zo6.sse.infrastructure.EmitterRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
@@ -16,148 +17,188 @@ import java.util.concurrent.ConcurrentHashMap;
 @Service
 @Log4j2
 public class SseService {
+
     private final EmitterRepository emitterRepository;
+
+    /**
+     * 마지막으로 전송한 참석자 수를 baseKey 단위로 보관한다.
+     * 신규 구독자가 연결되었을 때 현재 카운트를 즉시 전달하는 데 사용된다.
+     */
     private final Map<String, Long> lastKnownCounts = new ConcurrentHashMap<>();
-    private static final long TIMEOUT = 1800*1000L;
+
+    private static final long TIMEOUT = 1800 * 1000L;
     private static final long RECONNECTION_TIMEOUT = 1000L;
     private static final String ATTEND_EVENT_NAME = "AttendanceCount";
 
-    public SseEmitter subscribe(Long conferenceId, Long sessionId){
-        String eventKey = generateEventKey(conferenceId, sessionId);
-        SseEmitter newEmitter = new SseEmitter(TIMEOUT);
+    /**
+     * SSE 구독을 처리한다.
+     *
+     * userId는 같은 회의/세션에 접속하는 복수의 기기(사용자)를 구분하는 고유 식별자다.
+     * baseKey(회의/세션) + userId 조합으로 Emitter를 저장하므로,
+     * 서로 다른 사용자의 연결이 서로를 끊어내는 현상이 발생하지 않는다.
+     *
+     * @param conferenceId 컨퍼런스 ID (필수)
+     * @param sessionId    세션 ID (선택)
+     * @param userId       구독 기기/사용자를 식별하는 고유 값
+     */
+    public SseEmitter subscribe(Long conferenceId, Long sessionId, String userId) {
+        String baseKey = generateBaseKey(conferenceId, sessionId);
 
-        // 원자적으로 교체: 기존 emitter가 있으면 반환, 없으면 null
-        // 이전 코드의 find→check→delete→save 4단계는 레이스 컨디션 발생 가능
-        SseEmitter oldEmitter = emitterRepository.getAndReplace(eventKey, newEmitter);
-        if (oldEmitter != null) {
+        // 동일 기기의 기존 연결이 있으면 정리한다 (재연결 시나리오)
+        Map<String, SseEmitter> existingEmitters = emitterRepository.findEmittersByBaseKey(baseKey);
+        SseEmitter existingEmitter = existingEmitters.get(userId);
+        if (existingEmitter != null) {
             try {
-                oldEmitter.send(SseEmitter.event().name("check").data("ping"));
-                log.info("기존 SSE 연결이 유지 중이었음, 교체: {}", eventKey);
+                existingEmitter.send(SseEmitter.event().name("check").data("ping"));
+                log.info("기존 SSE 연결 감지, 교체 진행: baseKey={}, userId={}", baseKey, userId);
+                existingEmitter.complete();
             } catch (IOException e) {
-                log.info("기존 SSE 연결이 끊김 (CLOSE_WAIT 추정), 교체: {}", eventKey);
+                log.info("기존 SSE 연결이 이미 끊긴 상태 (CLOSE_WAIT 추정): baseKey={}, userId={}", baseKey, userId);
+                existingEmitter.complete();
             }
-            oldEmitter.complete(); // 교체된 기존 emitter 정리
+            emitterRepository.deleteByKey(baseKey, userId);
         }
 
-        registerEmitterHandler(eventKey, newEmitter);
+        SseEmitter sseEmitter = emitterRepository.save(baseKey, userId, new SseEmitter(TIMEOUT));
+        registerEmitterHandlers(baseKey, userId, sseEmitter);
+        sendInitialEvent(baseKey, sseEmitter);
 
-        sendToClientFirst(eventKey, newEmitter);
-
-        log.info("===  SSE Emitter 개수: {} ===", emitterRepository.countEmitters());
-        return newEmitter;
+        log.info("SSE 구독 완료: baseKey={}, userId={}, 전체 Emitter 수={}", baseKey, userId, emitterRepository.countEmitters());
+        return sseEmitter;
     }
 
-    // SseEmitter 를 통해 클라이언트에게 초기 전달용 이벤트를 전송하는 역할을 합니다.
-    private void sendToClientFirst(String eventKey, SseEmitter sseEmitter){
-        lastKnownCounts.putIfAbsent(eventKey, 0L);
-        long baseAttendCount = lastKnownCounts.getOrDefault(eventKey, 0L);
-        SseEmitter.SseEventBuilder event = getSseAttendEvent(eventKey, baseAttendCount);
-        try{
-            sseEmitter.send(event);
-        }catch (IOException e){
-            log.error("구독 실패, eventId ={}, {}", eventKey, e.getMessage());
-            throw new CustomException(ErrorCode.SSE_CONNECTION_FAILED);
+    /**
+     * 특정 회의/세션의 참석자 수를 해당 baseKey에 연결된 모든 기기에 전송한다.
+     *
+     * @param conferenceId 컨퍼런스 ID
+     * @param sessionId    세션 ID (선택)
+     * @param count        전송할 참석자 수
+     */
+    public void sendAttendanceCount(Long conferenceId, Long sessionId, long count) {
+        String baseKey = generateBaseKey(conferenceId, sessionId);
+        lastKnownCounts.put(baseKey, count);
+
+        Map<String, SseEmitter> targetEmitters = emitterRepository.findEmittersByBaseKey(baseKey);
+        if (targetEmitters.isEmpty()) {
+            return;
         }
-    }
 
-    // 기기에 해당하는 참석자 수 리턴
-    public void sendAttendanceCount(Long conferenceId, Long sessionId, long count){
-        String eventKey = generateEventKey(conferenceId, sessionId);
-        lastKnownCounts.put(eventKey, count);
-        SseEmitter emitter = emitterRepository.findEmitterByKey(eventKey);
-        SseEmitter.SseEventBuilder event = getSseAttendEvent(eventKey, count);
-        if(emitter != null){
-            try{
+        SseEmitter.SseEventBuilder event = buildAttendEvent(baseKey, count);
+        targetEmitters.forEach((userId, emitter) -> {
+            try {
                 emitter.send(event);
             } catch (IOException e) {
-                // @Async 쓰레드에서 예외를 throw해도 호출부로 전파되지 않고 무시됨
-                // 끊긴 emitter만 제거 — lastKnownCounts는 유지해 재연결 시 이전 카운트 전송 가능
-                log.warn("SSE 전송 실패(연결 끊김), emitter 제거: eventId={}, {}", eventKey, e.getMessage());
-                emitterRepository.deleteByEventKey(eventKey);
-                lastKnownCounts.remove(eventKey);
+                log.error("참석자 수 전송 실패: baseKey={}, userId={}, error={}", baseKey, userId, e.getMessage());
+                emitter.complete();
+                emitterRepository.deleteByKey(baseKey, userId);
             }
-        }
-    }
-
-    // 이벤트 id와, data 를 이용해서 SSE 이벤트 객체를 생성합니다.
-    private SseEmitter.SseEventBuilder getSseAttendEvent(String eventKey, Object data){
-        return SseEmitter.event()
-                .id(eventKey)
-                .name(ATTEND_EVENT_NAME)
-                .data(data)
-                .reconnectTime(RECONNECTION_TIMEOUT); // 클라이언트와 연결이 끊겼을 때 클라이언트가 서버와 재연결을 시도하기 전에 대기할 시간
-        // 해당 기능은 라이언트가 재연결 시도를 할 수 있도록 브라우저에게 힌트를 주는 역할
-    }
-
-    // SSE 연결이 종료되거나, 타임아웃되거나, 오류가 발생할 때 적절한 처리를 수행하도록 Emitter에 핸들러를 등록
-    void registerEmitterHandler(String eventId, SseEmitter sseEmitter){
-        /*  SSE 연결이 정상적으로 종료되었을 때
-           - 사용자가 브라우저를 닫거나 SSE 구독을 취소할 때
-           - 서버에서 sseEmitter.complete()을 호출했을 때
-        */
-        sseEmitter.onCompletion(()->{
-            log.info("연결이 끝났습니다. : eventId = {}", eventId);
-            emitterRepository.deleteByEventKey(eventId);
-            // lastKnownCounts는 유지 — 재연결 시 이전 카운트를 초기 이벤트로 전송하기 위함
-        });
-
-        /*  SSE 연결이 타임아웃되었을 때
-           - 클라이언트가 네트워크 문제로 오랜 시간 동안 응답을 받지 못했을 때
-           - 서버에서 일정 시간 동안 데이터가 전송되지 않아 클라이언트가 반응하지 않을 때
-           - SseEmitter가 설정된 timeout이 초과되었을 때
-        */
-        sseEmitter.onTimeout(()->{
-            log.info("Timeout이 발생했습니다. : eventId={}", eventId);
-            emitterRepository.deleteByEventKey(eventId);
-            // lastKnownCounts는 유지 — 재연결 시 이전 카운트를 초기 이벤트로 전송하기 위함
-        });
-
-        /*  SSE 연결 중 에러가 발생했을 때
-            - 클라이언트가 갑자기 연결을 끊었을 때 (ERR_INCOMPLETE_CHUNKED_ENCODING)
-            - 서버에서 SSE 메시지를 전송하는 중 네트워크 장애가 발생했을 때
-            - 잘못된 데이터 형식이 전송되어 클라이언트가 파싱하지 못할 때
-         */
-        sseEmitter.onError((e) ->{
-            log.info("에러가 발생했습니다. error={}, eventId={}", e.getMessage(),eventId);
-            emitterRepository.deleteByEventKey(eventId);
-            // lastKnownCounts는 유지 — 재연결 시 이전 카운트를 초기 이벤트로 전송하기 위함
         });
     }
 
-    private String generateEventKey(Long conferenceId, Long sessionId){
-        if(conferenceId == null){
-            throw new CustomException(ErrorCode.MISSING_REQUIRED_PARAMETER);
-        }
-
-        if(sessionId == null){
-            return "conference:" + conferenceId;
-        }else{
-            return "conference:" + conferenceId + ":session:" + sessionId;
-        }
-    }
-
-    public void  unsubscribe(Long conferenceId, Long sessionId) {
-        String eventKey = generateEventKey(conferenceId, sessionId);
-        SseEmitter emitter = emitterRepository.findEmitterByKey(eventKey);
+    /**
+     * 특정 기기의 SSE 연결을 명시적으로 종료한다.
+     *
+     * @param conferenceId 컨퍼런스 ID
+     * @param sessionId    세션 ID (선택)
+     * @param userId       구독 기기/사용자를 식별하는 고유 값
+     */
+    public void unsubscribe(Long conferenceId, Long sessionId, String userId) {
+        String baseKey = generateBaseKey(conferenceId, sessionId);
+        Map<String, SseEmitter> userEmitters = emitterRepository.findEmittersByBaseKey(baseKey);
+        SseEmitter emitter = userEmitters.get(userId);
         if (emitter != null) {
-            emitter.complete(); // 소켓 연결 종료
+            emitter.complete();
         }
-        emitterRepository.deleteByEventKey(eventKey);
-        log.info("SSE 연결 종료 요청: eventKey = {}", eventKey);
+        emitterRepository.deleteByKey(baseKey, userId);
+        log.info("SSE 연결 종료 요청: baseKey={}, userId={}", baseKey, userId);
     }
 
-    public void clearLastKnownCounts(){
+    /**
+     * 45초마다 연결된 모든 Emitter에 heartbeat 이벤트를 전송한다.
+     *
+     * Nginx 등 중간 인프라가 유휴 연결을 임의로 끊는 것을 방지하고,
+     * 이미 단절된 좀비 소켓을 능동적으로 감지해 정리한다.
+     */
+    @Scheduled(fixedRate = 45_000)
+    public void sendHeartbeat() {
+        Map<String, Map<String, SseEmitter>> allEmitters = emitterRepository.findAllEmitters();
+        allEmitters.forEach((baseKey, userEmitters) ->
+                userEmitters.forEach((userId, emitter) -> {
+                    try {
+                        emitter.send(SseEmitter.event().name("heartbeat").data("ping"));
+                    } catch (IOException e) {
+                        log.info("Heartbeat 전송 실패 — 좀비 소켓 정리: baseKey={}, userId={}", baseKey, userId);
+                        emitter.complete();
+                        emitterRepository.deleteByKey(baseKey, userId);
+                    }
+                })
+        );
+    }
+
+    public void clearLastKnownCounts() {
         lastKnownCounts.clear();
-        log.info("LastKnownCounts Map 저장소 정보 초기화");
+        log.info("lastKnownCounts 저장소 초기화 완료");
     }
 
     /** 재연·모니터링용: 현재 내부 상태 스냅샷 */
     public Map<String, Object> getStatus() {
         return Map.of(
-            "emitterCount", emitterRepository.countEmitters(),
-            "lastKnownCountsSize", lastKnownCounts.size(),
-            "lastKnownCountsKeys", lastKnownCounts.keySet()
+                "emitterCount", emitterRepository.countEmitters(),
+                "lastKnownCountsSize", lastKnownCounts.size(),
+                "lastKnownCountsKeys", lastKnownCounts.keySet()
         );
     }
 
+    // --- private helpers ---
+
+    private void sendInitialEvent(String baseKey, SseEmitter sseEmitter) {
+        lastKnownCounts.putIfAbsent(baseKey, 0L);
+        long baseAttendCount = lastKnownCounts.getOrDefault(baseKey, 0L);
+        SseEmitter.SseEventBuilder event = buildAttendEvent(baseKey, baseAttendCount);
+        try {
+            sseEmitter.send(event);
+        } catch (IOException e) {
+            log.error("초기 이벤트 전송 실패: baseKey={}, error={}", baseKey, e.getMessage());
+            throw new CustomException(ErrorCode.SSE_CONNECTION_FAILED);
+        }
+    }
+
+    private void registerEmitterHandlers(String baseKey, String userId, SseEmitter sseEmitter) {
+        sseEmitter.onCompletion(() -> {
+            log.info("SSE 연결 완료(종료): baseKey={}, userId={}", baseKey, userId);
+            emitterRepository.deleteByKey(baseKey, userId);
+        });
+
+        sseEmitter.onTimeout(() -> {
+            log.info("SSE 연결 타임아웃: baseKey={}, userId={}", baseKey, userId);
+            emitterRepository.deleteByKey(baseKey, userId);
+        });
+
+        sseEmitter.onError(e -> {
+            log.info("SSE 연결 오류: baseKey={}, userId={}, error={}", baseKey, userId, e.getMessage());
+            emitterRepository.deleteByKey(baseKey, userId);
+        });
+    }
+
+    private SseEmitter.SseEventBuilder buildAttendEvent(String baseKey, Object data) {
+        return SseEmitter.event()
+                .id(baseKey)
+                .name(ATTEND_EVENT_NAME)
+                .data(data)
+                .reconnectTime(RECONNECTION_TIMEOUT);
+    }
+
+    /**
+     * 회의/세션의 베이스 키를 생성한다.
+     * 이 키는 Emitter를 그룹화하는 데 사용되며, 사용자별 고유 식별은 호출부에서 userId로 처리한다.
+     */
+    private String generateBaseKey(Long conferenceId, Long sessionId) {
+        if (conferenceId == null) {
+            throw new CustomException(ErrorCode.MISSING_REQUIRED_PARAMETER);
+        }
+        if (sessionId == null) {
+            return "conference:" + conferenceId;
+        }
+        return "conference:" + conferenceId + ":session:" + sessionId;
+    }
 }
