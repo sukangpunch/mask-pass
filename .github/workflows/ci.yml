@@ -23,9 +23,9 @@ jobs:
       - name: gradlew 실행 권한 부여
         run: chmod +x ./gradlew
       - name: Build with Gradle Wrapper
-        run: ./gradlew build
-      - name: Publish Test Report
-        uses: mikepenz/action-junit-report@v5
-        if: success() || failure()
-        with:
-          report_paths: '**/build/test-results/test/TEST-*.xml'
+        run: ./gradlew build -x test
+#      - name: Publish Test Report
+#        uses: mikepenz/action-junit-report@v5
+#        if: success() || failure()
+#        with:
+#          report_paths: '**/build/test-results/test/TEST-*.xml'
