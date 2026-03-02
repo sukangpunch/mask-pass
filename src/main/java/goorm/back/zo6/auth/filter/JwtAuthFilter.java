@@ -1,18 +1,20 @@
 package goorm.back.zo6.auth.filter;
 
+import static goorm.back.zo6.common.exception.ErrorCode.UNKNOWN_TOKEN_ERROR;
+
 import com.fasterxml.jackson.databind.ObjectMapper;
 import goorm.back.zo6.auth.domain.LoginUser;
 import goorm.back.zo6.auth.util.CookieUtil;
 import goorm.back.zo6.auth.util.JwtUtil;
 import goorm.back.zo6.common.exception.CustomException;
 import goorm.back.zo6.common.exception.ErrorCode;
-import goorm.back.zo6.user.domain.Role;
-import goorm.back.zo6.user.domain.User;
-import goorm.back.zo6.user.domain.UserRepository;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import java.io.IOException;
+import java.util.Collection;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -21,13 +23,8 @@ import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
+import org.springframework.util.AntPathMatcher;
 import org.springframework.web.filter.OncePerRequestFilter;
-
-import java.io.IOException;
-import java.util.Collection;
-import java.util.List;
-
-import static goorm.back.zo6.common.exception.ErrorCode.UNKNOWN_TOKEN_ERROR;
 
 
 @Log4j2
@@ -35,8 +32,28 @@ import static goorm.back.zo6.common.exception.ErrorCode.UNKNOWN_TOKEN_ERROR;
 @RequiredArgsConstructor
 public class JwtAuthFilter extends OncePerRequestFilter {
 
+    private static final List<String> WHITELIST = List.of(
+            "/swagger-ui/**", "/v3/api-docs/**", "/swagger-resources/**", "/webjars/**",
+            "/actuator/**",
+            "/api/v1/users/signup", "/api/v1/auth/login",
+            "/api/v1/users/signup-link", "/api/v1/users/check-email",
+            "/api/v1/users/code", "/api/v1/users/verify",
+            "/api/v1/rekognition/authentication", "/api/v1/face/authentication", "/api/v1/face/collection",
+            "/api/v1/conference/**", "/api/v1/conferences/**",
+            "/api/v1/sse/**",
+            "/oauth2/**", "/login/oauth2/**"
+    );
+
+    private static final AntPathMatcher PATH_MATCHER = new AntPathMatcher();
+
     private final JwtUtil jwtUtil;
     private final ObjectMapper objectMapper;
+
+    @Override
+    protected boolean shouldNotFilter(HttpServletRequest request) {
+        String path = request.getRequestURI();
+        return WHITELIST.stream().anyMatch(pattern -> PATH_MATCHER.match(pattern, path));
+    }
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain) throws ServletException, IOException {
