@@ -26,7 +26,7 @@ public class SseService {
      */
     private final Map<String, Long> lastKnownCounts = new ConcurrentHashMap<>();
 
-    private static final long TIMEOUT = 1800 * 1000L;
+    private static final long TIMEOUT = SseEmitter.UNDEFINED_TIMEOUT; // -1: 무제한, 좀비 소켓은 heartbeat(45s)로 감지
     private static final long RECONNECTION_TIMEOUT = 1000L;
     private static final String ATTEND_EVENT_NAME = "AttendanceCount";
 

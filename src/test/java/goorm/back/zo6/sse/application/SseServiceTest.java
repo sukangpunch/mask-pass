@@ -29,7 +29,7 @@ class SseServiceTest {
     @Mock
     private EmitterRepository emitterRepository;
 
-    private static final long TIMEOUT = 1800 * 1000L;
+    private static final long TIMEOUT = SseEmitter.UNDEFINED_TIMEOUT;
     private static final String USER_ID = "device-uuid-001";
 
     @Test
