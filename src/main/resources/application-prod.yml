@@ -17,7 +17,7 @@ spring:
 
   data:
     redis:
-      host: localhost
+      host: ${REDIS_HOST}
       port: 6379
       repositories:
         enabled: false
@@ -72,6 +72,6 @@ cookie:
   valid-time: 10800  # 180 minutes
   name: ${COOKIE_NAME}
 
-logging:
-  discord:
-    webhook-url: ${DISCORD_WEBHOOK_URL}
+#logging:
+#  discord:
+#    webhook-url: ${DISCORD_WEBHOOK_URL}

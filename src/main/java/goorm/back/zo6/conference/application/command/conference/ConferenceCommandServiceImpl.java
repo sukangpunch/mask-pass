@@ -16,11 +16,8 @@ import org.springframework.transaction.annotation.Transactional;
 public class ConferenceCommandServiceImpl implements ConferenceCommandService {
 
     private final ConferenceRepository conferenceRepository;
-
     private final ConferenceMapper conferenceMapper;
-
     private final ConferenceValidator conferenceValidator;
-
     private final ConferenceFactory conferenceFactory;
 
     @Override

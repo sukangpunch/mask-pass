@@ -150,26 +150,11 @@ tasks.jacocoTestCoverageVerification {
 
 
 
-asciidoctor {
-    attributes 'projectdir': projectDir
-    inputs.dir snippetsDir
-    configurations 'asciidoctorExt'
-    dependsOn test
-}
-
-tasks.named('asciidoctor') {
-    inputs.dir snippetsDir
-    dependsOn test
-}
+// RestDocs 비활성화
+asciidoctor.enabled = false
 
 bootJar {
-    dependsOn asciidoctor
     println("start bootJar")
-    println("${asciidoctor.outputDir}")
-    copy {
-        from("${asciidoctor.outputDir}")
-        into 'src/main/resources/static/docs'
-    }
 }
 
 // Querydsl 설정부

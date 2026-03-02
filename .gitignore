@@ -41,3 +41,7 @@ out/
 ### volume ###
 postgres_data_local
 redis_data_local
+
+### claude ###
+settings.local.json
+agent-memory

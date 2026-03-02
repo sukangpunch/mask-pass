@@ -6,23 +6,6 @@
     <property name="FILE_LOG_PATTERN"
               value="[%X{CORRELATION_ID:-NO CORRELATION ID}] [%d{yyyy-MM-dd HH:mm:ss}] [%thread] %-5level [%C.%M:%L] : %msg%n"/>
 
-    <!-- Discord Webhook Appender 공통 정의 -->
-    <springProperty name="DISCORD_WEBHOOK_URL" source="logging.discord.webhook-url"/>
-    <appender name="DISCORD" class="com.github.napstr.logback.DiscordAppender">
-        <webhookUri>${DISCORD_WEBHOOK_URL}</webhookUri>
-        <layout class="ch.qos.logback.classic.PatternLayout">
-            <pattern>[%X{CORRELATION_ID:-NO CORRELATION ID}] %d{HH:mm:ss} [%thread] [%-5level] %logger{36} - %msg%n%ex{short}</pattern>
-        </layout>
-        <username>MaskPass ERROR</username>
-        <avatarUrl>https://jjal.today/data/file/gallery/1889155643_NZHvkRLz_e0292b65bb682075bfdb752a4dmaskpass_db8f4062f0b7738a.png</avatarUrl>
-        <tts>false</tts>
-    </appender>
-
-    <appender name="ASYNC_DISCORD" class="ch.qos.logback.classic.AsyncAppender">
-        <appender-ref ref="DISCORD"/>
-        <filter class="goorm.back.zo6.common.log.ExcludeErrorFilter"/>
-    </appender>
-
     <!-- 로컬 로깅 -->
     <springProfile name="!prod">
         <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
@@ -38,6 +21,13 @@
 
     <!-- 배포 환경 로깅 -->
     <springProfile name="prod">
+        <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+            <encoder>
+                <pattern>${FILE_LOG_PATTERN}</pattern>
+                <charset>UTF-8</charset>
+            </encoder>
+        </appender>
+
         <appender name="FILE-LOG" class="ch.qos.logback.core.rolling.RollingFileAppender">
             <encoder>
                 <pattern>${FILE_LOG_PATTERN}</pattern>
@@ -52,8 +42,8 @@
         </appender>
 
         <root level="INFO">
+            <appender-ref ref="CONSOLE"/>
             <appender-ref ref="FILE-LOG"/>
-            <appender-ref ref="ASYNC_DISCORD"/>
         </root>
     </springProfile>
 </configuration>

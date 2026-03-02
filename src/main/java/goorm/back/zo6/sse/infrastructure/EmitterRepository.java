@@ -1,7 +1,6 @@
 package goorm.back.zo6.sse.infrastructure;
 
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
-
 import java.util.Map;
 
 public interface EmitterRepository {

@@ -28,8 +28,12 @@ while true; do
   # ── 2. JVM Heap (Actuator) ───────────────────────────────
   # used / committed / max (bytes)
   HEAP_JSON=$(curl -s "${HOST}/actuator/metrics/jvm.memory.used?tag=area:heap" 2>/dev/null)
-  HEAP_USED=$(echo "$HEAP_JSON" | grep -o '"value":[0-9.]*' | head -1 | grep -o '[0-9.]*')
-  HEAP_MB=$(echo "scale=1; ${HEAP_USED:-0} / 1048576" | bc 2>/dev/null || echo "?")
+  HEAP_USED=$(echo "$HEAP_JSON" | grep -o '"value":[0-9.E+\-]*' | head -1 | grep -o '[0-9.E+\-]*')
+  if [ -z "${HEAP_USED}" ]; then
+      HEAP_MB="?"
+  else
+      HEAP_MB=$(awk "BEGIN {printf \"%.1f\", ${HEAP_USED} / 1048576}")
+  fi
 
   # ── 3. Micrometer SSE 게이지 (Prometheus 포맷 직접 확인) ─
   SSE_GAUGE=$(curl -s "${HOST}/actuator/metrics/sse.emitter.count" 2>/dev/null \

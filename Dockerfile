@@ -1,10 +1,14 @@
-FROM eclipse-temurin:23-jdk-jammy as build
-WORKDIR /app
-COPY . .
-RUN ./gradlew clean build -x test
-FROM eclipse-temurin:23-jre-jammy
-WORKDIR /app
-COPY --from=build /app/build/libs/*.jar app.jar
-COPY src/main/resources/application.yml ./src/main/resources/application.yml
-EXPOSE 8080
-ENTRYPOINT ["java", "-jar", "app.jar"]
+# jdk 버전 설정
+FROM eclipse-temurin:21-jre-alpine
+
+# JAR_FILE 변수 정의
+ARG JAR_FILE=./build/libs/zo6-0.0.1-SNAPSHOT.jar
+
+# JAR 파일 메인 디렉토리에 복사
+COPY ${JAR_FILE} app.jar
+
+# 시스템 진입점 정의
+ENTRYPOINT ["java", "-jar", "/app.jar"]
+
+# 볼륨 설정
+VOLUME /tmp
