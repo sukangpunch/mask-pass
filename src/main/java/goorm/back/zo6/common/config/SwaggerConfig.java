@@ -29,7 +29,7 @@ public class SwaggerConfig {
     private List<Server> servers() {
         List<Server> servers = new ArrayList<>();
         servers.add(new Server().url("http://localhost:8080").description("Local URL"));
-        servers.add(new Server().url("https://server.maskpass.site").description("zo6"));
+        servers.add(new Server().url("https://server.hyungjun-practice.store").description("zo6"));
         return servers;
     }
 }
