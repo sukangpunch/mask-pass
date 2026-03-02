@@ -20,6 +20,8 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.context.WebApplicationContext;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
+import java.util.Map;
+
 import static org.hibernate.validator.internal.util.Contracts.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.springframework.restdocs.mockmvc.MockMvcRestDocumentation.documentationConfiguration;
@@ -36,6 +38,8 @@ import static org.springframework.test.web.servlet.setup.MockMvcBuilders.webAppC
 @ExtendWith(RestDocumentationExtension.class)
 @Import(RestDocsConfiguration.class)
 class SseControllerTest {
+
+    private static final String USER_ID = "device-uuid-test";
 
     @Autowired
     private WebApplicationContext context;
@@ -69,14 +73,15 @@ class SseControllerTest {
         mockMvc.perform(get("/api/v1/sse/subscribe")
                         .param("conferenceId", String.valueOf(conferenceId))
                         .param("sessionId", String.valueOf(sessionId))
+                        .param("userId", USER_ID)
                         .accept(MediaType.TEXT_EVENT_STREAM_VALUE))
                 .andExpect(status().isOk())
                 .andExpect(content().contentType(MediaType.TEXT_EVENT_STREAM_VALUE));
 
-        String eventKey = "conference:" + conferenceId + ":session:" + sessionId;
-        SseEmitter savedEmitter = emitterRepository.findEmitterByKey(eventKey);
+        String baseKey = "conference:" + conferenceId + ":session:" + sessionId;
+        Map<String, SseEmitter> savedEmitters = emitterRepository.findEmittersByBaseKey(baseKey);
 
-        assertNotNull(savedEmitter);
+        assertNotNull(savedEmitters.get(USER_ID));
     }
 
     @Test
@@ -84,16 +89,33 @@ class SseControllerTest {
     void subscribe_NoneConferenceFails() throws Exception {
         // given
         Long sessionId = 2L;
+
         // when & then
         mockMvc.perform(get("/api/v1/sse/subscribe")
+                        .param("sessionId", String.valueOf(sessionId))
+                        .param("userId", USER_ID)
+                        .accept(MediaType.TEXT_EVENT_STREAM_VALUE))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("SSE 구독 요청 - userId 없이 요청하면 400 Bad Request")
+    void subscribe_NoneUserIdFails() throws Exception {
+        // given
+        Long conferenceId = 1L;
+        Long sessionId = 2L;
+
+        // when & then
+        mockMvc.perform(get("/api/v1/sse/subscribe")
+                        .param("conferenceId", String.valueOf(conferenceId))
                         .param("sessionId", String.valueOf(sessionId))
                         .accept(MediaType.TEXT_EVENT_STREAM_VALUE))
                 .andExpect(status().isBadRequest());
     }
 
     @Test
-    @DisplayName("SSE 구독 요청 - Emitter 가 저장소에 저장되지 않으면 예외 발생")
-    void subscribe_EmitterNotStored_ShouldReturnNull() throws Exception {
+    @DisplayName("SSE 구독 요청 - 존재하지 않는 키로 Emitter를 조회하면 null을 반환한다")
+    void subscribe_NonExistentKey_ReturnsNull() throws Exception {
         // given
         Long conferenceId = 1L;
         Long sessionId = 2L;
@@ -102,13 +124,13 @@ class SseControllerTest {
         mockMvc.perform(get("/api/v1/sse/subscribe")
                         .param("conferenceId", String.valueOf(conferenceId))
                         .param("sessionId", String.valueOf(sessionId))
+                        .param("userId", USER_ID)
                         .accept(MediaType.TEXT_EVENT_STREAM_VALUE))
                 .andExpect(status().isOk());
 
-        // 저장된 SSE Emitter 확인 (없는 경우 예외 발생)
-        String invalidEventKey = "conference:-1:session:-2"; // 존재하지 않는 key
-        SseEmitter savedEmitter = emitterRepository.findEmitterByKey(invalidEventKey);
+        // 존재하지 않는 키로 조회
+        Map<String, SseEmitter> emitters = emitterRepository.findEmittersByBaseKey("conference:-1:session:-2");
 
-        assertNull(savedEmitter); // 저장되지 않았어야 함
+        assertNull(emitters.get(USER_ID));
     }
 }
