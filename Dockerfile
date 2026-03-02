@@ -2,7 +2,7 @@
 FROM eclipse-temurin:21-jre-alpine
 
 # JAR_FILE 변수 정의
-ARG JAR_FILE=./build/libs/mask-pass-0.0.1-SNAPSHOT.jar
+ARG JAR_FILE=./build/libs/zo6-0.0.1-SNAPSHOT.jar
 
 # JAR 파일 메인 디렉토리에 복사
 COPY ${JAR_FILE} app.jar
