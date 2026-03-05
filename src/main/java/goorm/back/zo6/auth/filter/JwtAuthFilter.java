@@ -40,7 +40,7 @@ public class JwtAuthFilter extends OncePerRequestFilter {
             "/api/v1/users/code", "/api/v1/users/verify",
             "/api/v1/rekognition/authentication", "/api/v1/face/authentication", "/api/v1/face/collection",
             "/api/v1/conference/**", "/api/v1/conferences/**",
-            "/api/v1/sse/**",
+
             "/oauth2/**", "/login/oauth2/**"
     );
 
