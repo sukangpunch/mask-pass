@@ -1,12 +1,13 @@
 package goorm.back.zo6.sse.presentation;
 
+import goorm.back.zo6.auth.domain.LoginUser;
 import goorm.back.zo6.sse.application.SseService;
 import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
@@ -29,12 +30,12 @@ public class SseController {
     public SseEmitter subscribe(
             @RequestParam("conferenceId") Long conferenceId,
             @RequestParam(value = "sessionId", required = false) Long sessionId,
-            @Parameter(description = "기기/사용자 고유 식별자 (예: 기기 UUID)", required = true)
-            @RequestParam("userId") String userId) {
-        return sseService.subscribe(conferenceId, sessionId, userId);
+            @AuthenticationPrincipal LoginUser loginUser
+    ) {
+        return sseService.subscribe(conferenceId, sessionId, loginUser.getId().toString());
     }
 
-    @DeleteMapping("/unsubscribe")
+    @PostMapping("/unsubscribe")
     @Operation(
             summary = "얼굴 인식 SSE 연결 끊기",
             description = "SSE 연결이 제대로 끊어지지 않는 경우 서버 메모리를 위해 연결을 강제로 끊습니다."
@@ -42,8 +43,10 @@ public class SseController {
     public ResponseEntity<Void> unsubscribe(
             @RequestParam("conferenceId") Long conferenceId,
             @RequestParam(value = "sessionId", required = false) Long sessionId,
-            @RequestParam("userId") String userId) {
-        sseService.unsubscribe(conferenceId, sessionId, userId);
+            @AuthenticationPrincipal LoginUser loginUser
+    )
+    {
+        sseService.unsubscribe(conferenceId, sessionId, loginUser.getId().toString());
         return ResponseEntity.ok().build();
     }
 
