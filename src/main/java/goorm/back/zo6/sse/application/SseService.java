@@ -22,10 +22,6 @@ public class SseService {
     private final EmitterRepository emitterRepository;
 
     private final Map<String, Long> lastKnownCounts = new ConcurrentHashMap<>();
-
-    // [수정 1] TIMEOUT을 -1(무제한)에서 30분으로 복구한다.
-    // -1로 설정하면 onTimeout() 콜백이 영원히 호출되지 않아
-    // heartbeat에서 IOException이 발생하지 않는 한 emitter가 Map에 영구 잔류한다.
     private static final long TIMEOUT = 1000 * 1800L; // 30분
     private static final long RECONNECTION_TIMEOUT = 1000L;
     private static final String ATTEND_EVENT_NAME = "AttendanceCount";
@@ -110,37 +106,37 @@ public class SseService {
         log.info("SSE 연결 종료 요청: baseKey={}, userId={}", baseKey, userId);
     }
 
-    @Scheduled(fixedRate = 45_000)
-    public void sendHeartbeat() {
-        Map<String, Map<String, SseEmitter>> allEmitters = emitterRepository.findAllEmitters();
-
-        // [수정 3과 동일] 삭제 대상 수집 후 일괄 처리
-        List<String[]> failedKeys = new ArrayList<>(); // [baseKey, userId]
-
-        allEmitters.forEach((baseKey, userEmitters) ->
-                                    userEmitters.forEach((userId, emitter) -> {
-                                        try {
-                                            emitter.send(SseEmitter.event().name("heartbeat").data("ping"));
-                                        } catch (IOException e) {
-                                            log.info("Heartbeat 전송 실패 — 좀비 소켓 정리: baseKey={}, userId={}", baseKey, userId);
-                                            failedKeys.add(new String[]{baseKey, userId});
-                                        }
-                                    })
-        );
-
-        failedKeys.forEach(key -> {
-            String baseKey = key[0];
-            String userId = key[1];
-            Map<String, SseEmitter> userEmitters = allEmitters.get(baseKey);
-            if (userEmitters != null) {
-                SseEmitter failedEmitter = userEmitters.get(userId);
-                if (failedEmitter != null) {
-                    failedEmitter.complete();
-                }
-            }
-            emitterRepository.deleteByKey(baseKey, userId);
-        });
-    }
+//    @Scheduled(fixedRate = 45_000)
+//    public void sendHeartbeat() {
+//        Map<String, Map<String, SseEmitter>> allEmitters = emitterRepository.findAllEmitters();
+//
+//        // [수정 3과 동일] 삭제 대상 수집 후 일괄 처리
+//        List<String[]> failedKeys = new ArrayList<>(); // [baseKey, userId]
+//
+//        allEmitters.forEach((baseKey, userEmitters) ->
+//                                    userEmitters.forEach((userId, emitter) -> {
+//                                        try {
+//                                            emitter.send(SseEmitter.event().name("heartbeat").data("ping"));
+//                                        } catch (IOException e) {
+//                                            log.info("Heartbeat 전송 실패 — 좀비 소켓 정리: baseKey={}, userId={}", baseKey, userId);
+//                                            failedKeys.add(new String[]{baseKey, userId});
+//                                        }
+//                                    })
+//        );
+//
+//        failedKeys.forEach(key -> {
+//            String baseKey = key[0];
+//            String userId = key[1];
+//            Map<String, SseEmitter> userEmitters = allEmitters.get(baseKey);
+//            if (userEmitters != null) {
+//                SseEmitter failedEmitter = userEmitters.get(userId);
+//                if (failedEmitter != null) {
+//                    failedEmitter.complete();
+//                }
+//            }
+//            emitterRepository.deleteByKey(baseKey, userId);
+//        });
+//    }
 
     public void clearLastKnownCounts() {
         lastKnownCounts.clear();
@@ -153,14 +149,6 @@ public class SseService {
         sendAttendanceCount(conferenceId, sessionId, newCount);
         log.info("[테스트] 카운트 증가: baseKey={}, newCount={}", baseKey, newCount);
         return newCount;
-    }
-
-    public Map<String, Object> getStatus() {
-        return Map.of(
-                "emitterCount", emitterRepository.countEmitters(),
-                "lastKnownCountsSize", lastKnownCounts.size(),
-                "lastKnownCountsKeys", lastKnownCounts.keySet()
-        );
     }
 
     // --- private helpers ---

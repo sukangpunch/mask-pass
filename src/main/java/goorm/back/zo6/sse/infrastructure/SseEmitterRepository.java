@@ -29,14 +29,6 @@ public class SseEmitterRepository implements EmitterRepository {
      * 동일 baseKey 하에 여러 사용자의 Emitter를 독립적으로 보관한다.
      */
     private final Map<String, Map<String, SseEmitter>> emitters = new ConcurrentHashMap<>();
-    private final MeterRegistry meterRegistry;
-
-    @PostConstruct
-    public void registerMetrics() {
-        Gauge.builder("sse.emitter.count", this, SseEmitterRepository::countEmitters)
-                .description("현재 활성 SSE Emitter 수")
-                .register(meterRegistry);
-    }
 
     @Override
     public SseEmitter save(String baseKey, String userId, SseEmitter sseEmitter) {

@@ -60,15 +60,6 @@ public class SseController {
         return ResponseEntity.ok().build();
     }
 
-    @GetMapping("/status")
-    @Operation(
-            summary = "[디버그] SSE 내부 상태 조회",
-            description = "emitter 수 및 lastKnownCounts 크기를 반환합니다. 버그 재연·모니터링 전용입니다."
-    )
-    public ResponseEntity<Map<String, Object>> status() {
-        return ResponseEntity.ok(sseService.getStatus());
-    }
-
     @PostMapping("/test/increment")
     @Operation(
             summary = "[테스트] 참석자 수 +1",
