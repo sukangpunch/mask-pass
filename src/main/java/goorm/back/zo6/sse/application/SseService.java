@@ -106,37 +106,37 @@ public class SseService {
         log.info("SSE 연결 종료 요청: baseKey={}, userId={}", baseKey, userId);
     }
 
-//    @Scheduled(fixedRate = 45_000)
-//    public void sendHeartbeat() {
-//        Map<String, Map<String, SseEmitter>> allEmitters = emitterRepository.findAllEmitters();
-//
-//        // [수정 3과 동일] 삭제 대상 수집 후 일괄 처리
-//        List<String[]> failedKeys = new ArrayList<>(); // [baseKey, userId]
-//
-//        allEmitters.forEach((baseKey, userEmitters) ->
-//                                    userEmitters.forEach((userId, emitter) -> {
-//                                        try {
-//                                            emitter.send(SseEmitter.event().name("heartbeat").data("ping"));
-//                                        } catch (IOException e) {
-//                                            log.info("Heartbeat 전송 실패 — 좀비 소켓 정리: baseKey={}, userId={}", baseKey, userId);
-//                                            failedKeys.add(new String[]{baseKey, userId});
-//                                        }
-//                                    })
-//        );
-//
-//        failedKeys.forEach(key -> {
-//            String baseKey = key[0];
-//            String userId = key[1];
-//            Map<String, SseEmitter> userEmitters = allEmitters.get(baseKey);
-//            if (userEmitters != null) {
-//                SseEmitter failedEmitter = userEmitters.get(userId);
-//                if (failedEmitter != null) {
-//                    failedEmitter.complete();
-//                }
-//            }
-//            emitterRepository.deleteByKey(baseKey, userId);
-//        });
-//    }
+    @Scheduled(fixedRate = 45_000)
+    public void sendHeartbeat() {
+        Map<String, Map<String, SseEmitter>> allEmitters = emitterRepository.findAllEmitters();
+
+        // [수정 3과 동일] 삭제 대상 수집 후 일괄 처리
+        List<String[]> failedKeys = new ArrayList<>(); // [baseKey, userId]
+
+        allEmitters.forEach((baseKey, userEmitters) ->
+                                    userEmitters.forEach((userId, emitter) -> {
+                                        try {
+                                            emitter.send(SseEmitter.event().name("heartbeat").data("ping"));
+                                        } catch (IOException e) {
+                                            log.info("Heartbeat 전송 실패 — 좀비 소켓 정리: baseKey={}, userId={}", baseKey, userId);
+                                            failedKeys.add(new String[]{baseKey, userId});
+                                        }
+                                    })
+        );
+
+        failedKeys.forEach(key -> {
+            String baseKey = key[0];
+            String userId = key[1];
+            Map<String, SseEmitter> userEmitters = allEmitters.get(baseKey);
+            if (userEmitters != null) {
+                SseEmitter failedEmitter = userEmitters.get(userId);
+                if (failedEmitter != null) {
+                    failedEmitter.complete();
+                }
+            }
+            emitterRepository.deleteByKey(baseKey, userId);
+        });
+    }
 
     public void clearLastKnownCounts() {
         lastKnownCounts.clear();
