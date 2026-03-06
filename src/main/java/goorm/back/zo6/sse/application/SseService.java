@@ -101,8 +101,9 @@ public class SseService {
         emitterRepository.deleteByKey(baseKey, userId);
         if (emitter != null) {
             try {
-                emitter.complete();
-            } catch (Exception e) {
+                // 1. 강제 타임아웃 예외를 던져서 소켓을 즉각적으로 파괴합니다.
+                // 이렇게 하면 Spring/Tomcat이 스케줄링을 기다리지 않고 연결을 즉시 CLOSE 합니다.
+                emitter.completeWithError(new RuntimeException("클라이언트 요청에 의한 명시적 SSE 연결 종료"));            } catch (Exception e) {
                 log.warn("unsubscribe complete() 중 예외 (무시 가능): baseKey={}, userId={}, error={}", baseKey, userId, e.getMessage());
             }
         }
