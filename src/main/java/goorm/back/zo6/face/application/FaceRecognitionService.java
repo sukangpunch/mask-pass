@@ -63,7 +63,7 @@ public class FaceRecognitionService {
         String rekognitionId = face.getRekognitionFaceId();
         // Rekognition Collection 에 저장된 이미지 삭제
         rekognitionApiClient.deleteFaceFromCollection(rekognitionId);
-        // DB 에서 삭제
+        // DB 에서 삭제mask_pass_db
         faceRepository.deleteByUserId(userId);
         log.info("얼굴 데이터 삭제 완료! userId : {}", userId);
         user.deleteFace();
