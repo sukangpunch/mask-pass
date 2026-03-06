@@ -138,10 +138,8 @@ jobs:
               export AWS_ACCESS_KEY="${{ secrets.AWS_ACCESS_KEY }}"
               export AWS_SECRET_ACCESS_KEY="${{ secrets.AWS_SECRET_ACCESS_KEY }}"
               export REKOGNITION_COLLECTION_ID="${{ secrets.REKOGNITION_COLLECTION_ID }}"
-              export S3_BUCKET_NAME="${{ secrets.S3_BUCKET_NAME }}"
               export SERVER_URL="${{ secrets.SERVER_URL }}"
               export COOKIE_NAME="${{ secrets.COOKIE_NAME }}"
-              export DISCORD_WEBHOOK_URL="${{ secrets.DISCORD_WEBHOOK_URL }}"
 
               echo "Cleaning up old tagged images (keeping last 2)..."
               docker images "${DOCKERHUB_USERNAME}/mask-pass" --format "{{.Tag}}" | \
