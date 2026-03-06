@@ -68,4 +68,17 @@ public class SseController {
     public ResponseEntity<Map<String, Object>> status() {
         return ResponseEntity.ok(sseService.getStatus());
     }
+
+    @PostMapping("/test/increment")
+    @Operation(
+            summary = "[테스트] 참석자 수 +1",
+            description = "conferenceId/sessionId 에 해당하는 lastKnownCounts 를 1 증가시키고 구독자에게 SSE 이벤트를 전송합니다."
+    )
+    public ResponseEntity<Long> incrementCount(
+            @RequestParam("conferenceId") Long conferenceId,
+            @RequestParam(value = "sessionId", required = false) Long sessionId
+    ) {
+        long newCount = sseService.incrementCount(conferenceId, sessionId);
+        return ResponseEntity.ok(newCount);
+    }
 }
