@@ -3,16 +3,21 @@ package goorm.back.zo6.face.infrastructure;
 import goorm.back.zo6.common.exception.CustomException;
 import goorm.back.zo6.common.exception.ErrorCode;
 import goorm.back.zo6.face.dto.response.FaceMatchingResponse;
+import java.nio.ByteBuffer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import software.amazon.awssdk.core.SdkBytes;
 import software.amazon.awssdk.services.rekognition.RekognitionClient;
-import software.amazon.awssdk.services.rekognition.model.*;
-
-import java.nio.ByteBuffer;
-import java.util.Optional;
+import software.amazon.awssdk.services.rekognition.model.CreateCollectionRequest;
+import software.amazon.awssdk.services.rekognition.model.CreateCollectionResponse;
+import software.amazon.awssdk.services.rekognition.model.DeleteCollectionRequest;
+import software.amazon.awssdk.services.rekognition.model.DeleteFacesRequest;
+import software.amazon.awssdk.services.rekognition.model.Image;
+import software.amazon.awssdk.services.rekognition.model.IndexFacesRequest;
+import software.amazon.awssdk.services.rekognition.model.IndexFacesResponse;
+import software.amazon.awssdk.services.rekognition.model.SearchFacesByImageRequest;
 
 @Component
 @RequiredArgsConstructor
@@ -127,8 +132,7 @@ public class RekognitionApiClient {
                     .build());
             log.info("Rekognition Collection 초기화 완료");
         }catch (Exception e){
-            log.error("Rekognition Collection 초기화 실패");
-            throw new CustomException(ErrorCode.REKOGNITION_API_FAILURE);
+            log.error("Rekognition Collection 초기화 실패. 원인: {}", e.getMessage(), e);            throw new CustomException(ErrorCode.REKOGNITION_API_FAILURE);
         }
     }
 }

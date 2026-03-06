@@ -8,7 +8,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicLong;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -23,7 +22,6 @@ public class SseService {
     private final EmitterRepository emitterRepository;
 
     private final Map<String, Long> lastKnownCounts = new ConcurrentHashMap<>();
-    private final Map<String, AtomicLong> eventIdCounters = new ConcurrentHashMap<>();
 
     // [수정 1] TIMEOUT을 -1(무제한)에서 30분으로 복구한다.
     // -1로 설정하면 onTimeout() 콜백이 영원히 호출되지 않아
@@ -68,7 +66,7 @@ public class SseService {
             return;
         }
 
-        SseEmitter.SseEventBuilder event = buildAttendEvent(baseKey, count, nextEventId(baseKey));
+        SseEmitter.SseEventBuilder event = buildAttendEvent(count);
 
         // [수정 3] forEach 순회 중 Map 수정 방지
         // 실패한 emitter를 즉시 삭제하면 ConcurrentHashMap 내부 버킷 구조가 변경되어
@@ -145,8 +143,7 @@ public class SseService {
 
     public void clearLastKnownCounts() {
         lastKnownCounts.clear();
-        eventIdCounters.clear();
-        log.info("lastKnownCounts 및 eventIdCounters 저장소 초기화 완료");
+        log.info("lastKnownCounts 저장소 초기화 완료");
     }
 
     public Map<String, Object> getStatus() {
@@ -162,17 +159,13 @@ public class SseService {
     private void sendInitialEvent(String baseKey, SseEmitter sseEmitter) {
         lastKnownCounts.putIfAbsent(baseKey, 0L);
         long baseAttendCount = lastKnownCounts.getOrDefault(baseKey, 0L);
-        SseEmitter.SseEventBuilder event = buildAttendEvent(baseKey, baseAttendCount, nextEventId(baseKey));
+        SseEmitter.SseEventBuilder event = buildAttendEvent(baseAttendCount);
         try {
             sseEmitter.send(event);
         } catch (IOException e) {
             log.error("초기 이벤트 전송 실패: baseKey={}, error={}", baseKey, e.getMessage());
             throw new CustomException(ErrorCode.SSE_CONNECTION_FAILED);
         }
-    }
-
-    private long nextEventId(String baseKey) {
-        return eventIdCounters.computeIfAbsent(baseKey, k -> new AtomicLong(0)).incrementAndGet();
     }
 
     private void registerEmitterHandlers(String baseKey, String userId, SseEmitter sseEmitter) {
@@ -195,9 +188,8 @@ public class SseService {
         });
     }
 
-    private SseEmitter.SseEventBuilder buildAttendEvent(String baseKey, Object data, long eventId) {
+    private SseEmitter.SseEventBuilder buildAttendEvent(Object data) {
         return SseEmitter.event()
-                .id(String.valueOf(eventId))
                 .name(ATTEND_EVENT_NAME)
                 .data(data)
                 .reconnectTime(RECONNECTION_TIMEOUT);
@@ -213,4 +205,3 @@ public class SseService {
         return "conference:" + conferenceId + ":session:" + sessionId;
     }
 }
-
