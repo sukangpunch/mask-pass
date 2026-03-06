@@ -74,6 +74,8 @@ public class SecurityConfig {
                 .requestMatchers("/api/v1/reservation/temp").permitAll()
                 // Redis 테스트용 또는 캐시 데이터 확인용 엔드포인트
                 .requestMatchers("/api/v1/redis").permitAll()
+                // SSE 테스트용 카운트 증가 엔드포인트
+                .requestMatchers("/api/v1/sse/test/**").permitAll()
 
                 // 관리자 회원가입 (최초 관리자 등록 목적)
                 .requestMatchers("/api/v1/admin/signup").permitAll()

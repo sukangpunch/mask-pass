@@ -146,6 +146,14 @@ public class SseService {
         log.info("lastKnownCounts 저장소 초기화 완료");
     }
 
+    public long incrementCount(Long conferenceId, Long sessionId) {
+        String baseKey = generateBaseKey(conferenceId, sessionId);
+        long newCount = lastKnownCounts.merge(baseKey, 1L, Long::sum);
+        sendAttendanceCount(conferenceId, sessionId, newCount);
+        log.info("[테스트] 카운트 증가: baseKey={}, newCount={}", baseKey, newCount);
+        return newCount;
+    }
+
     public Map<String, Object> getStatus() {
         return Map.of(
                 "emitterCount", emitterRepository.countEmitters(),
