@@ -1,22 +1,35 @@
 package goorm.back.zo6.common.config;
 
+import java.util.Collections;
+import java.util.Map;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.log4j.Log4j2;
 import org.slf4j.MDC;
+import org.springframework.aop.interceptor.AsyncUncaughtExceptionHandler;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.task.TaskDecorator;
+import org.springframework.scheduling.annotation.AsyncConfigurer;
 import org.springframework.scheduling.annotation.EnableAsync;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 
-import java.util.Map;
-
+@Log4j2
+@RequiredArgsConstructor
 @Configuration
 @EnableAsync
-public class AsyncConfig {
+public class AsyncConfig implements AsyncConfigurer {
+
+    private final AsyncExceptionHandler asyncExceptionHandler;
+
     private static final TaskDecorator MDC_TASK_DECORATOR = runnable -> {
-        Map<String, String> contextMap = MDC.getCopyOfContextMap(); // 현재 쓰레드의 MDC 를 복사.
+        Map<String, String> contextMap = MDC.getCopyOfContextMap();
         return () -> {
-            MDC.setContextMap(contextMap); // 새 쓰레드에 복사한 MDC 설정
-            runnable.run(); // 로직 실행
+            MDC.setContextMap(contextMap != null ? contextMap : Collections.emptyMap());
+            try {
+                runnable.run();
+            } finally {
+                MDC.clear();
+            }
         };
     };
 
@@ -34,5 +47,10 @@ public class AsyncConfig {
         executor.setTaskDecorator(MDC_TASK_DECORATOR);
         executor.initialize();
         return executor;
+    }
+
+    @Override
+    public AsyncUncaughtExceptionHandler getAsyncUncaughtExceptionHandler() {
+        return asyncExceptionHandler;
     }
 }

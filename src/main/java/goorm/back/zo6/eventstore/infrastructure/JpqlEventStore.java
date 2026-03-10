@@ -15,8 +15,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
-@Repository
 @RequiredArgsConstructor
+@Repository
 public class JpqlEventStore implements EventStore {
     private final ObjectMapper objectMapper;
 
@@ -53,4 +53,6 @@ public class JpqlEventStore implements EventStore {
                 .setParameter(2, offset)
                 .getResultList();
     }
+
 }
+
