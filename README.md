@@ -47,8 +47,3 @@
 
 # 기술 스택 
 <img width="600" alt="image" src="https://github.com/user-attachments/assets/267f3ae0-e764-4d24-838f-7e5e54cba930" />
-
-# 서버 아키텍처
-
-
-<br />
