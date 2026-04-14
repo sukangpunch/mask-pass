@@ -82,7 +82,7 @@ public class SseService {
         failedUserIds.forEach(userId -> {
             SseEmitter failedEmitter = targetEmitters.get(userId);
             if (failedEmitter != null) {
-                failedEmitter.complete();
+                failedEmitter.completeWithError(new RuntimeException("이벤트 전송 실패로 인한 SSE 연결 강제 종료"));
             }
             emitterRepository.deleteByKey(baseKey, userId);
         });
@@ -131,7 +131,7 @@ public class SseService {
             if (userEmitters != null) {
                 SseEmitter failedEmitter = userEmitters.get(userId);
                 if (failedEmitter != null) {
-                    failedEmitter.complete();
+                    failedEmitter.completeWithError(new RuntimeException("Heartbeat 실패로 인한 좀비 소켓 강제 종료"));
                 }
             }
             emitterRepository.deleteByKey(baseKey, userId);
